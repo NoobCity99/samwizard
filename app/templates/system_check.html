@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block title %}Check this server{% endblock %}
+
+{% block content %}
+  <p class="lead">
+    Review the setup checks below. This mock can preview fixes and command output, but it does not run commands or change this server.
+  </p>
+
+  {% if critical_unresolved %}
+    <div class="notice warning-panel">
+      Resolve the critical checks before continuing. Internet access is required later so the wizard can install Windows file sharing support.
+    </div>
+  {% endif %}
+
+  <section class="check-grid" aria-label="System checks">
+    {% for check in checks %}
+      <article class="check-card check-card-{{ check.status }}">
+        <div class="check-card-header">
+          <div>
+            <p class="check-label">{% if check.critical %}Critical check{% else %}Recommended check{% endif %}</p>
+            <h2>{{ check.title }}</h2>
+          </div>
+          <span class="status-badge status-{{ check.status }}">
+            {% if check.status == "passed" %}
+              Passed
+            {% elif check.status == "resolved" %}
+              Resolved in mock mode
+            {% else %}
+              Needs attention
+            {% endif %}
+          </span>
+        </div>
+
+        <p class="check-value">{{ check.value }}</p>
+        <p class="check-summary">{{ check.summary }}</p>
+
+        {% if check.commands %}
+          <div class="command-preview">
+            <span>Command preview</span>
+            <pre>{% for command in check.commands %}{{ command }}
+{% endfor %}</pre>
+          </div>
+        {% endif %}
+
+        {% if check.logs %}
+          <ul class="mock-log" aria-label="{{ check.title }} mock log">
+            {% for log in check.logs %}
+              <li>{{ log }}</li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        {% if check.status == "needs_attention" and check.id != "internet_connectivity" %}
+          <form method="post" action="/system-check/resolve" class="inline-action">
+            <input type="hidden" name="check_id" value="{{ check.id }}">
+            <button type="submit">Run mock fix</button>
+          </form>
+        {% endif %}
+      </article>
+    {% endfor %}
+  </section>
+
+  <section class="wifi-panel" aria-labelledby="wifi-title">
+    <div>
+      <p class="check-label">Internet troubleshooting</p>
+      <h2 id="wifi-title">Connect with Wi-Fi using a Netplan preview</h2>
+      <p>
+        Ethernet is usually the simplest choice for a server. If you cannot use a hardline connection, enter the Wi-Fi details below to preview the Netplan-based fix this wizard may run in a later milestone.
+      </p>
+    </div>
+
+    {% if wifi_error %}
+      <div class="error compact-error" role="alert">{{ wifi_error }}</div>
+    {% endif %}
+
+    <form method="post" action="/system-check/wifi" class="wifi-form">
+      <label class="field">
+        <span>Wi-Fi adapter name</span>
+        <input
+          type="text"
+          name="wifi_interface"
+          value="{{ wifi_state.interface or 'wlan0' }}"
+          autocomplete="off"
+          required
+        >
+      </label>
+      <label class="field">
+        <span>Wi-Fi network name</span>
+        <input
+          type="text"
+          name="wifi_ssid"
+          value="{{ wifi_state.ssid or '' }}"
+          autocomplete="off"
+          required
+        >
+      </label>
+      <label class="field">
+        <span>Wi-Fi password</span>
+        <input type="password" name="wifi_password" autocomplete="current-password" required>
+      </label>
+      <p class="hint">The password is only checked as present in this mock. It is not stored in the session.</p>
+      <button type="submit">Run mock Wi-Fi fix</button>
+    </form>
+
+    {% if netplan_preview %}
+      <div class="command-preview netplan-preview">
+        <span>Generated Netplan preview</span>
+        <pre>{{ netplan_preview }}</pre>
+      </div>
+    {% endif %}
+  </section>
+
+  <form method="post" action="/system-check" class="actions split">
+    <a href="/" class="secondary">Back</a>
+    <button type="submit">Continue</button>
+  </form>
+{% endblock %}

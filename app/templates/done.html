@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Your mock share is ready{% endblock %}
+
+{% block content %}
+  <p class="lead">
+    In the real wizard, this is the address you would open from Windows.
+  </p>
+  <div class="connection">
+    <span>Windows path</span>
+    <code>{{ windows_path }}</code>
+  </div>
+  <ol class="instructions">
+    <li>Open File Explorer on your Windows computer.</li>
+    <li>Click the address bar.</li>
+    <li>Type the path above and sign in with username <strong>{{ state.username or 'sambauser' }}</strong>.</li>
+  </ol>
+  <form method="post" action="/start" class="actions split">
+    <a href="/review" class="secondary">Back to review</a>
+    <button type="submit">Start over</button>
+  </form>
+{% endblock %}

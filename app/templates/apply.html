@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block title %}Apply mock setup{% endblock %}
+
+{% block content %}
+  <p class="lead">
+    This screen simulates the setup steps that a later milestone will perform for real.
+  </p>
+  <ul class="status-list">
+    {% for status in statuses %}
+      <li>
+        <span class="check">OK</span>
+        {{ status }}
+      </li>
+    {% endfor %}
+  </ul>
+  <div class="notice">
+    Mock mode is active. This page does not run commands or edit system files.
+  </div>
+  <form method="post" action="/apply" class="actions">
+    <button type="submit">Show connection details</button>
+  </form>
+{% endblock %}

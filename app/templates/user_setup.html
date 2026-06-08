@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Create private access{% endblock %}
+
+{% block content %}
+  <p class="lead">
+    Choose the username and password you will type on your Windows computer.
+  </p>
+  <form method="post" action="/user-setup">
+    <label class="field">
+      <span>Username</span>
+      <input
+        type="text"
+        name="username"
+        value="{{ state.username or 'sambauser' }}"
+        autocomplete="username"
+        required
+      >
+    </label>
+    <label class="field">
+      <span>Password</span>
+      <input type="password" name="password" autocomplete="new-password" required>
+    </label>
+    <label class="field">
+      <span>Confirm password</span>
+      <input type="password" name="confirm_password" autocomplete="new-password" required>
+    </label>
+    <p class="hint">This mock confirms the passwords match but does not save the password.</p>
+    <div class="actions split">
+      <a href="/share-name" class="secondary">Back</a>
+      <button type="submit">Review setup</button>
+    </div>
+  </form>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+
+{% block title %}Review before applying{% endblock %}
+
+{% block content %}
+  <p class="lead">
+    Check the setup preview. The next screen still performs a mock setup only.
+  </p>
+  <dl class="facts">
+    <div>
+      <dt>Shared location</dt>
+      <dd>{{ selected_location.name }}</dd>
+    </div>
+    <div>
+      <dt>Windows share name</dt>
+      <dd>{{ state.share_name }}</dd>
+    </div>
+    <div>
+      <dt>Private username</dt>
+      <dd>{{ state.username }}</dd>
+    </div>
+    <div>
+      <dt>Password</dt>
+      <dd>{% if state.password_confirmed %}Confirmed for this mock{% else %}Not set{% endif %}</dd>
+    </div>
+  </dl>
+  <div class="notice">
+    No programs will be installed, no folders will be mounted, and no sharing settings will be changed.
+  </div>
+  <form method="post" action="/review" class="actions split">
+    <a href="/user-setup" class="secondary">Back</a>
+    <button type="submit">Apply mock setup</button>
+  </form>
+{% endblock %}

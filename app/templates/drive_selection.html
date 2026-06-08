@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Choose what to share{% endblock %}
+
+{% block content %}
+  <p class="lead">
+    Pick the drive or folder that should become available from your Windows computer.
+  </p>
+  <form method="post" action="/drive-selection">
+    <fieldset class="choices">
+      <legend class="sr-only">Available drives and folders</legend>
+      {% for location in locations %}
+        <label class="choice">
+          <input
+            type="radio"
+            name="location_id"
+            value="{{ location.id }}"
+            {% if state.location_id == location.id %}checked{% endif %}
+          >
+          <span>
+            <strong>{{ location.name }}</strong>
+            <small>{{ location.description }}</small>
+          </span>
+        </label>
+      {% endfor %}
+    </fieldset>
+    <div class="actions split">
+      <a href="/system-check" class="secondary">Back</a>
+      <button type="submit">Continue</button>
+    </div>
+  </form>
+{% endblock %}
