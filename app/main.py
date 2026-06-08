@@ -18,7 +18,6 @@ MOCK_SYSTEM = {
     "hostname": "home-fileserver",
     "ip_address": "192.168.1.50",
     "ubuntu_version": "Ubuntu Server 24.04 LTS",
-    "samba_status": "Ready to install later",
 }
 
 MOCK_SYSTEM_CHECKS = [
@@ -53,24 +52,6 @@ MOCK_SYSTEM_CHECKS = [
         "logs": ["Ubuntu Server version looks compatible."],
     },
     {
-        "id": "file_sharing",
-        "title": "Windows file sharing support",
-        "value": "Not installed yet",
-        "status": "needs_attention",
-        "summary": "A later milestone will install file sharing support. This mock can preview the repair flow.",
-        "critical": False,
-        "commands": [
-            "sudo apt update",
-            "sudo apt install samba",
-            "systemctl status smbd --no-pager",
-        ],
-        "logs": [
-            "Mock package list refreshed.",
-            "Mock file sharing package marked ready.",
-            "Mock service check completed.",
-        ],
-    },
-    {
         "id": "storage_visibility",
         "title": "Drive and folder visibility",
         "value": "3 mock locations found",
@@ -83,9 +64,9 @@ MOCK_SYSTEM_CHECKS = [
     {
         "id": "internet_connectivity",
         "title": "Internet connectivity",
-        "value": "Not connected in mock mode",
-        "status": "needs_attention",
-        "summary": "Internet access will be needed later to install Windows file sharing support.",
+        "value": "Ethernet detected",
+        "status": "passed",
+        "summary": "The server has a wired connection for downloads and updates.",
         "critical": True,
         "commands": [
             "ip link show",
@@ -158,6 +139,7 @@ def system_check_state(request: Request) -> dict[str, Any]:
     checks.setdefault("resolved", [])
     checks.setdefault("logs", {})
     checks.setdefault("wifi", {})
+    checks.setdefault("ethernet_detected", True)
     state["system_checks"] = checks
     request.session["wizard"] = state
     return checks
@@ -171,10 +153,15 @@ def system_checks_for_request(request: Request) -> list[dict[str, Any]]:
     check_state = system_check_state(request)
     resolved = set(check_state.get("resolved", []))
     logs = check_state.get("logs", {})
+    ethernet_detected = bool(check_state.get("ethernet_detected", True))
     checks = []
 
     for definition in MOCK_SYSTEM_CHECKS:
         check = definition.copy()
+        if check["id"] == "internet_connectivity" and not ethernet_detected:
+            check["value"] = "Ethernet not detected"
+            check["status"] = "needs_attention"
+            check["summary"] = "Try plugging in ethernet first. If that is not available, use the Wi-Fi guide below."
         if check["id"] in resolved:
             check["status"] = "resolved"
             check["value"] = "Resolved in mock mode"
@@ -233,7 +220,9 @@ def system_check_page(
 ):
     checks = system_checks_for_request(request)
     critical_unresolved = unresolved_critical_checks(checks)
-    wifi_state = system_check_state(request).get("wifi", {})
+    check_state = system_check_state(request)
+    wifi_state = check_state.get("wifi", {})
+    ethernet_detected = bool(check_state.get("ethernet_detected", True))
     netplan_preview = None
 
     if wifi_state.get("interface") and wifi_state.get("ssid"):
@@ -251,6 +240,7 @@ def system_check_page(
             checks=checks,
             critical_unresolved=critical_unresolved,
             wifi_state=wifi_state,
+            ethernet_detected=ethernet_detected,
             netplan_preview=netplan_preview,
             error=error,
             wifi_error=wifi_error,
@@ -286,7 +276,21 @@ def start(request: Request):
 
 
 @app.get("/system-check")
-def system_check(request: Request):
+def system_check(request: Request, ethernet: str | None = None):
+    if ethernet in {"detected", "missing"}:
+        check_state = system_check_state(request)
+        check_state["ethernet_detected"] = ethernet == "detected"
+        if ethernet == "detected":
+            check_state["wifi"] = {}
+            check_state["resolved"] = [
+                check_id
+                for check_id in check_state.get("resolved", [])
+                if check_id != "internet_connectivity"
+            ]
+            check_state.get("logs", {}).pop("internet_connectivity", None)
+        state = wizard_state(request)
+        state["system_checks"] = check_state
+        request.session["wizard"] = state
     return system_check_page(request)
 
 
@@ -301,19 +305,6 @@ def system_check_next(request: Request):
     return redirect("/drive-selection")
 
 
-@app.post("/system-check/resolve")
-def resolve_system_check(request: Request, check_id: str = Form("")):
-    check = system_check_definition(check_id)
-    if check is None or check["status"] != "needs_attention":
-        return system_check_page(request, error="That check cannot be resolved in this mock.")
-    if check_id == "internet_connectivity":
-        return system_check_page(
-            request,
-            wifi_error="Use the Wi-Fi guide below to resolve internet connectivity.",
-        )
-
-    append_resolved_check(request, check_id)
-    return redirect("/system-check")
 
 
 @app.post("/system-check/wifi")

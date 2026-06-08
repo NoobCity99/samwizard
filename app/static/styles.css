@@ -818,3 +818,62 @@ button:hover {
     grid-template-columns: 1fr;
   }
 }
+
+/* Compact System Check checklist refinements */
+.compact-checklist {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.compact-checklist .check-card {
+  padding: 12px 14px;
+  background: rgba(8, 17, 31, 0.72);
+  box-shadow: inset 2px 0 0 rgba(55, 168, 255, 0.2);
+}
+
+.compact-checklist .check-card-header {
+  align-items: center;
+}
+
+.compact-checklist .check-card h2 {
+  font-size: 0.9rem;
+}
+
+.compact-checklist .check-label {
+  margin-bottom: 3px;
+  font-size: 0.64rem;
+}
+
+.compact-checklist .status-badge {
+  padding: 4px 8px;
+  font-size: 0.62rem;
+}
+
+.compact-checklist .check-value {
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
+.compact-checklist .check-summary {
+  margin-top: 3px;
+  font-size: 0.9rem;
+}
+
+.compact-checklist .command-preview {
+  margin-top: 10px;
+}
+
+.compact-checklist .command-preview pre {
+  padding: 9px 10px;
+  font-size: 0.78rem;
+}
+
+.compact-checklist .mock-log {
+  margin-top: 10px;
+}
+
+@media (max-width: 760px) {
+  .compact-checklist .check-card-header {
+    align-items: flex-start;
+  }
+}
