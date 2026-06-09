@@ -1,23 +1,50 @@
 {% extends "base.html" %}
 
-{% block title %}Apply mock setup{% endblock %}
+{% block title %}Apply setup{% endblock %}
 
 {% block content %}
   <p class="lead">
-    This screen simulates the setup steps that a later milestone will perform for real.
+    Enter the Windows share password, then apply the setup to this server.
   </p>
-  <ul class="status-list">
-    {% for status in statuses %}
-      <li>
-        <span class="check">OK</span>
-        {{ status }}
-      </li>
-    {% endfor %}
-  </ul>
-  <div class="notice">
-    Mock mode is active. This page does not run commands or edit system files.
-  </div>
-  <form method="post" action="/apply" class="actions">
-    <button type="submit">Show connection details</button>
+
+  <form method="post" action="/apply">
+    <label class="field">
+      <span>Windows share password</span>
+      <input type="password" name="samba_password" autocomplete="new-password" required>
+    </label>
+    <label class="field">
+      <span>Confirm password</span>
+      <input type="password" name="confirm_samba_password" autocomplete="new-password" required>
+    </label>
+    <p class="hint">This password is sent directly to Samba during Apply. It is not stored in the session.</p>
+    <div class="actions split">
+      <a href="/review" class="secondary">Back</a>
+      <button type="submit">Apply setup</button>
+    </div>
   </form>
+
+  {% if results %}
+    <ul class="status-list apply-results" aria-label="Setup results">
+      {% for result in results %}
+        <li class="result-{{ result.status }}">
+          <span class="check">{{ "OK" if result.status == "passed" else "Stop" }}</span>
+          <span>
+            <strong>{{ result.title }}</strong>
+            <small>{{ result.summary }}</small>
+            {% if result.details %}
+              <span class="result-details">
+                {% for detail in result.details %}
+                  <code>{{ detail }}</code>
+                {% endfor %}
+              </span>
+            {% endif %}
+          </span>
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <div class="notice">
+    Real setup requires running this app with sudo until the installer milestone is added.
+  </div>
 {% endblock %}

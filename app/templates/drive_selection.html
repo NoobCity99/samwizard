@@ -4,8 +4,13 @@
 
 {% block content %}
   <p class="lead">
-    Pick the drive or folder that should become available from your Windows computer.
+    Pick the server folder or existing drive that should become available from your Windows computer.
   </p>
+  {% if not has_eligible_drive %}
+    <div class="notice">
+      No share-ready drive partitions were found. In WSL this is common because Windows and virtual storage may not appear as safe UUID-backed Linux partitions. You can still continue with the server folder option.
+    </div>
+  {% endif %}
   <form method="post" action="/drive-selection">
     <fieldset class="choices">
       <legend class="sr-only">Available drives and folders</legend>
@@ -29,4 +34,34 @@
       <button type="submit">Continue</button>
     </div>
   </form>
+
+  {% if drive_diagnostics %}
+    <section class="storage-details" aria-labelledby="storage-details-title">
+      <div>
+        <p class="check-label">Optional details</p>
+        <h2 id="storage-details-title">Detected storage details</h2>
+      </div>
+      <div class="storage-table" role="table" aria-label="Detected storage">
+        <div class="storage-row storage-heading" role="row">
+          <span role="columnheader">Name</span>
+          <span role="columnheader">Details</span>
+          <span role="columnheader">Status</span>
+        </div>
+        {% for item in drive_diagnostics %}
+          <div class="storage-row" role="row">
+            <span role="cell">
+              <strong>{{ item.name }}</strong>
+              <small>{{ item.path }}</small>
+            </span>
+            <span role="cell">
+              <small>{{ item.size }}, type {{ item.type }}, filesystem {{ item.filesystem }}, UUID {{ item.uuid }}, {{ item.mountpoints }}</small>
+            </span>
+            <span role="cell">
+              <small>{{ item.reason }}</small>
+            </span>
+          </div>
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
 {% endblock %}

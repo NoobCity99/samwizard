@@ -155,144 +155,42 @@ http://192.168.1.50:8080
 
 ---
 
-## Suggested Milestones
+### Milestone 5.2: Redesign how log appears
 
-### Milestone 1: Clickable Mock Wizard
+    The command log feature should be accessable by an icon at the top right of the window. (not at the bottom of the checks page) When user clicks on icon (use a paper & pen icon or something similar) a new tab opens, ex: xxx.x.x.x:8080/logs , it should show live view of all commands and they can reference it throughout the process. 
 
-Build the complete wizard UI with mock data and no real system changes.
+    ALSO: investigate the drive selection feature, it's not showing me available drives just saying it will create a folder , if that's just because im on my local wsl,  I'll just wait until i test this out on a live server to give more notes on that topic. 
 
-Pages:
+### Milestone 6: Bootstrap Installer and GitHub Release Asset
 
-```text
-Welcome
-System Check
-Drive Selection
-Share Name
-User Setup
-Review
-Apply
-Done
-```
-
-Goal:
-
-```text
-The user can click through the full setup flow.
-```
-
----
-
-### Milestone 2: Real System Detection
-
-Replace mock data with real read-only system information.
-
-Detect:
+Create a novice-friendly bootstrap installer for Ubuntu Server.
+Installer Responsibilities:
+1. Confirm the system is Ubuntu Server or compatible Ubuntu.
+2. Check for required commands: curl, python3, python3-venv, pip, systemctl.
+3. Install missing dependencies using apt.
+4. Create the application directory:
+   /opt/samwizard/
+5. Download the versioned SamWizard app bundle from GitHub Releases.
+6. Extract/copy the app into /opt/samwizard/.
+7. Create a Python virtual environment:
+   /opt/samwizard/venv/
+8. Install Python requirements.
+9. Create a systemd service named:
+   samwizard
+10. Start the samwizard service.
+11. Enable the service to start on reboot, unless intentionally skipped.
+12. Detect the server's local IP address.
+13. Print the browser URL for the user, for example:
+   http://192.168.1.50:8080
+14. Provide clear error messages if installation fails.
+The primary release asset should be:
 
 ```text
-Hostname
-Local IP address
-Ubuntu version
-Samba installed/not installed
-Available drives/partitions
-Mounted folders
+install.sh
 ```
 
-Goal:
 
-```text
-The wizard can accurately describe the server without changing it.
-```
-
----
-
-### Milestone 3: Samba Install Test
-
-Add controlled Samba installation.
-
-Actions:
-
-```text
-apt update
-apt install samba
-verify smbd service
-```
-
-Goal:
-
-```text
-The wizard can install Samba and confirm it is available.
-```
-
----
-
-### Milestone 4: Simple Folder Share
-
-Before dealing with external drives, create a basic Samba share from a known folder.
-
-Example:
-
-```text
-/srv/samba/testshare
-```
-
-Goal:
-
-```text
-Windows can connect to a wizard-created Samba share.
-```
-
----
-
-### Milestone 5: Drive-Based Share
-
-Add drive/partition selection and persistent mounting using UUIDs.
-
-Goal:
-
-```text
-The wizard can create a Samba share on a selected existing drive or partition.
-```
-
-No formatting yet.
-
----
-
-### Milestone 6: Installer Script
-
-Create the bootstrap installer that installs dependencies, copies the app, starts the service, and prints the wizard URL.
-
-Goal:
-
-```text
-A novice can start the wizard with one command.
-```
-
----
-
-## Future Expansion Ideas
-
-Later versions may add:
-
-```text
-Multiple shares
-Multiple users
-Guest shares
-Drive formatting with heavy warnings
-NTFS/exFAT support improvements
-Backup job setup
-Robocopy helper generation for Windows
-Tailscale-aware connection instructions
-Cockpit plugin version
-Server dashboard
-One-time setup code
-Wizard self-disable after completion
-```
-
-These should not distract from the MVP.
-
----
-
-## North Star
+### North Star
 
 The project succeeds when a beginner can go from a fresh Ubuntu Server install to a working private Windows-accessible network share without needing to understand Samba, Linux mounts, config files, or command-line administration.
 

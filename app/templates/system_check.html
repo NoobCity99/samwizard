@@ -4,12 +4,16 @@
 
 {% block content %}
   <p class="lead">
-    Review this quick setup checklist. This mock can preview Wi-Fi troubleshooting only when ethernet is not detected.
+    Review what this computer reports. The checks only read system information; the Wi-Fi form changes settings only if you choose to submit it.
   </p>
+
+  <div class="notice">
+    Some items may show as unavailable on Windows, WSL, or non-Ubuntu systems. That is safe for this milestone.
+  </div>
 
   {% if critical_unresolved %}
     <div class="notice warning-panel">
-      Resolve the critical network check before continuing. Try ethernet first; use the Wi-Fi guide only if a hardline connection is not available.
+      Resolve the critical checks before continuing.
     </div>
   {% endif %}
 
@@ -22,31 +26,17 @@
             <h2>{{ check.title }}</h2>
           </div>
           <span class="status-badge status-{{ check.status }}">
-            {% if check.status == "passed" %}
-              Passed
-            {% elif check.status == "resolved" %}
-              Resolved
-            {% else %}
-              Needs attention
-            {% endif %}
+            {{ check.status_label }}
           </span>
         </div>
 
         <p class="check-value">{{ check.value }}</p>
         <p class="check-summary">{{ check.summary }}</p>
 
-        {% if check.status == "needs_attention" and check.commands %}
-          <div class="command-preview">
-            <span>Command preview</span>
-            <pre>{% for command in check.commands %}{{ command }}
-{% endfor %}</pre>
-          </div>
-        {% endif %}
-
-        {% if check.status != "passed" and check.logs %}
-          <ul class="mock-log" aria-label="{{ check.title }} mock log">
-            {% for log in check.logs %}
-              <li>{{ log }}</li>
+        {% if check.details %}
+          <ul class="system-detail-list" aria-label="{{ check.title }} details">
+            {% for detail in check.details %}
+              <li>{{ detail }}</li>
             {% endfor %}
           </ul>
         {% endif %}
@@ -54,54 +44,81 @@
     {% endfor %}
   </section>
 
-  {% if not ethernet_detected %}
-    <section class="wifi-panel" aria-labelledby="wifi-title">
+  {% if not internet_connected %}
+    <section class="wifi-panel" aria-labelledby="internet-title">
       <div>
         <p class="check-label">Internet troubleshooting</p>
-        <h2 id="wifi-title">Connect with Wi-Fi using a Netplan preview</h2>
+        <h2 id="internet-title">Connect this server to the internet</h2>
         <p>
-          Ethernet is usually the simplest choice for a server. If you cannot use a hardline connection, enter the Wi-Fi details below to preview the Netplan-based fix this wizard may run in a later milestone.
+          Ethernet is usually the simplest choice for a server. Plug in ethernet first, then check again.
         </p>
       </div>
 
-      {% if wifi_error %}
-        <div class="error compact-error" role="alert">{{ wifi_error }}</div>
-      {% endif %}
+      <div class="actions inline-actions">
+        <form method="get" action="/system-check">
+          <button type="submit">OK, I connected ethernet</button>
+        </form>
+        <a href="/system-check?wifi=show" class="secondary">Connect Wi-Fi</a>
+      </div>
 
-      <form method="post" action="/system-check/wifi" class="wifi-form">
-        <label class="field">
-          <span>Wi-Fi adapter name</span>
-          <input
-            type="text"
-            name="wifi_interface"
-            value="{{ wifi_state.interface or 'wlan0' }}"
-            autocomplete="off"
-            required
-          >
-        </label>
-        <label class="field">
-          <span>Wi-Fi network name</span>
-          <input
-            type="text"
-            name="wifi_ssid"
-            value="{{ wifi_state.ssid or '' }}"
-            autocomplete="off"
-            required
-          >
-        </label>
-        <label class="field">
-          <span>Wi-Fi password</span>
-          <input type="password" name="wifi_password" autocomplete="current-password" required>
-        </label>
-        <p class="hint">The password is only checked as present in this mock. It is not stored in the session.</p>
-        <button type="submit">Run mock Wi-Fi fix</button>
-      </form>
-
-      {% if netplan_preview %}
-        <div class="command-preview netplan-preview">
-          <span>Generated Netplan preview</span>
-          <pre>{{ netplan_preview }}</pre>
+      {% if show_wifi %}
+        <div class="notice wifi-warning">
+          While Wi-Fi works ok, long term "always on" servers perform better over ethernet.
         </div>
+
+        {% if wifi_error %}
+          <div class="error compact-error" role="alert">{{ wifi_error }}</div>
+        {% endif %}
+
+        <form method="post" action="/system-check/wifi-preview" class="wifi-form">
+          <label class="field">
+            <span>Wi-Fi adapter name</span>
+            <input
+              type="text"
+              name="wifi_interface"
+              value="{{ wifi_state.interface or 'wlan0' }}"
+              autocomplete="off"
+              required
+            >
+          </label>
+          <label class="field">
+            <span>Wi-Fi network name</span>
+            <input
+              type="text"
+              name="wifi_ssid"
+              value="{{ wifi_state.ssid or '' }}"
+              autocomplete="off"
+              required
+            >
+          </label>
+          <label class="field">
+            <span>Wi-Fi password</span>
+            <input type="password" name="wifi_password" autocomplete="current-password" required>
+          </label>
+          <p class="hint">The password is used only to apply Wi-Fi settings. It is not stored.</p>
+          <button type="submit">Connect Wi-Fi</button>
+        </form>
+
+        {% if wifi_results %}
+          <ul class="status-list apply-results" aria-label="Wi-Fi setup results">
+            {% for result in wifi_results %}
+              <li class="result-{{ result.status }}">
+                <span class="check">{{ "OK" if result.status == "passed" else "Stop" }}</span>
+                <span>
+                  <strong>{{ result.title }}</strong>
+                  <small>{{ result.summary }}</small>
+                  {% if result.details %}
+                    <span class="result-details">
+                      {% for detail in result.details %}
+                        <code>{{ detail }}</code>
+                      {% endfor %}
+                    </span>
+                  {% endif %}
+                </span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
       {% endif %}
     </section>
   {% endif %}
