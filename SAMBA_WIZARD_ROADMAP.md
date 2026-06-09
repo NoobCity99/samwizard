@@ -29,9 +29,11 @@ The Windows PC should only need a browser. The actual Samba installation, drive 
 
 ## MVP Scope
 
-The first version should focus on one successful use case:
+This version should focus on these successful use cases:
 
-> Create one private Samba share on one existing drive or folder.
+> Create a private Samba share on one existing drive.
+> Allow user to add/mount new drives later if SAMBA is detected by system checks, without walking them through the create samba user portion they experiance in the first use. 
+> Give user laymen feedback about any errors so they can google them to troubleshoot. 
 
 ### Include
 

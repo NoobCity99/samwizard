@@ -87,7 +87,7 @@ Use a real Ubuntu Server system with systemd. WSL is useful for unit tests, but
 it is not the target for the Milestone 6 service installer.
 
 ```bash
-curl -fsSL https://github.com/NoobCity99/samwizard/releases/latest/download/install.sh -o install.sh
+curl -fsSL https://github.com/NoobCity99/samwizard/releases/download/test2/install.sh -o install.sh
 sudo bash install.sh
 ```
 
