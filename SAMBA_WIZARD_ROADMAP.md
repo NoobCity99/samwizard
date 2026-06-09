@@ -183,6 +183,7 @@ Installer Responsibilities:
 13. Print the browser URL for the user, for example:
    http://192.168.1.50:8080
 14. Provide clear error messages if installation fails.
+15: CODEX UPDATE README.MD with instructions for how to place this app on github for users to access & install.
 The primary release asset should be:
 
 ```text
