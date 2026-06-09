@@ -6,7 +6,7 @@ ENV_DIR="${SAMWIZARD_ENV_DIR:-/etc/samwizard}"
 # Default env file: /etc/samwizard/samwizard.env
 ENV_FILE="${SAMWIZARD_ENV_FILE:-${ENV_DIR}/samwizard.env}"
 SERVICE_FILE="/etc/systemd/system/samwizard.service"
-APP_URL="${SAMWIZARD_APP_URL:-https://github.com/NoobCity99/samwizard/releases/latest/download/samwizard-app.tar.gz}"
+APP_URL="${SAMWIZARD_APP_URL:-https://github.com/NoobCity99/samwizard/releases/download/test2/samwizard-app.tar.gz}"
 HOST="${SAMWIZARD_HOST:-0.0.0.0}"
 PORT="${SAMWIZARD_PORT:-8080}"
 
