@@ -6,7 +6,7 @@ ENV_DIR="${SAMWIZARD_ENV_DIR:-/etc/samwizard}"
 # Default env file: /etc/samwizard/samwizard.env
 ENV_FILE="${SAMWIZARD_ENV_FILE:-${ENV_DIR}/samwizard.env}"
 SERVICE_FILE="/etc/systemd/system/samwizard.service"
-APP_URL="${SAMWIZARD_APP_URL:-https://github.com/NoobCity99/samwizard/releases/download/test2/samwizard-app.tar.gz}"
+APP_URL="${SAMWIZARD_APP_URL:-https://github.com/NoobCity99/samwizard/releases/download/test3/samwizard-app.tar.gz}"
 HOST="${SAMWIZARD_HOST:-0.0.0.0}"
 PORT="${SAMWIZARD_PORT:-8080}"
 
@@ -21,7 +21,7 @@ fail() {
 
 require_root() {
   if [ "${EUID}" -ne 0 ]; then
-    fail "run this installer with sudo, for example: sudo bash install.sh"
+    fail "run this installer with sudo, for example: sudo bash samwizard.sh"
   fi
 }
 
@@ -50,7 +50,10 @@ install_prerequisites() {
   say "Installing required system tools..."
   export DEBIAN_FRONTEND=noninteractive
   apt-get update
-  apt-get install -y curl ca-certificates python3 python3-venv python3-pip tar iproute2
+  apt-get install -y curl ca-certificates python3 python3-venv python3-pip tar iproute2 ntfs-3g exfatprogs
+  if ! apt-get install -y hfsplus hfsprogs; then
+    say "Optional Mac HFS tools were not installed. NTFS and exFAT support are still installed."
+  fi
 }
 
 download_and_extract_app() {

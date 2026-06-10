@@ -361,6 +361,17 @@ h1 {
   border: 0;
 }
 
+.access-choices {
+  margin-top: 24px;
+}
+
+.access-choices legend {
+  margin-bottom: 10px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-weight: 800;
+}
+
 .choice {
   display: flex;
   gap: 13px;
@@ -539,7 +550,8 @@ button:hover {
 }
 
 .check-card,
-.wifi-panel {
+.wifi-panel,
+.summary-panel {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 18px;
@@ -574,7 +586,8 @@ button:hover {
 }
 
 .check-card h2,
-.wifi-panel h2 {
+.wifi-panel h2,
+.summary-panel h2 {
   margin: 0;
   color: var(--text);
   font-family: var(--mono);
@@ -631,7 +644,8 @@ button:hover {
 }
 
 .check-summary,
-.wifi-panel p {
+.wifi-panel p,
+.summary-panel p {
   margin: 8px 0 0;
   color: var(--muted);
 }
@@ -721,6 +735,16 @@ button:hover {
     repeating-linear-gradient(-45deg, rgba(255, 159, 67, 0.055) 0 8px, transparent 8px 16px),
     rgba(10, 17, 28, 0.9);
   box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.summary-panel {
+  display: grid;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.card-actions {
+  margin-top: 16px;
 }
 
 .wifi-form {

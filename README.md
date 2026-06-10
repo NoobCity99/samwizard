@@ -9,9 +9,9 @@ Samba command/package evidence, `lsblk` JSON, `findmnt` JSON, and `/proc/mounts`
 as a fallback.
 
 The System Check page is read-only. The Apply step for Milestones 3-5 can make
-real system changes when the app is started with sudo: install Samba, create a
-private share folder, update Samba config, mount a selected drive by UUID, and
-restart Samba.
+real system changes when the app is started with sudo: install Samba, mount a
+selected external or additional drive by UUID, update Samba config, and restart
+Samba.
 
 ## Run locally for read-only screens
 
@@ -59,13 +59,13 @@ From WSL or Linux:
 
 ```bash
 if [ -x .venv-wsl/bin/python ]; then PY=.venv-wsl/bin/python; else PY=python3; fi
-$PY build_release.py --version 0.6.0 --output dist/samwizard-app.tar.gz
+$PY build_release.py --version 0.7.0 --output dist/samwizard-app.tar.gz
 ```
 
 Upload these files to the GitHub Release:
 
 ```text
-install.sh
+samwizard.sh
 dist/samwizard-app.tar.gz
 ```
 
@@ -78,7 +78,7 @@ https://github.com/NoobCity99/samwizard/releases/latest/download/samwizard-app.t
 For pre-release testing, override the bundle URL:
 
 ```bash
-sudo SAMWIZARD_APP_URL="https://example.test/samwizard-app.tar.gz" bash install.sh
+sudo SAMWIZARD_APP_URL="https://example.test/samwizard-app.tar.gz" bash samwizard.sh
 ```
 
 ## Install on Ubuntu Server
@@ -87,8 +87,8 @@ Use a real Ubuntu Server system with systemd. WSL is useful for unit tests, but
 it is not the target for the Milestone 6 service installer.
 
 ```bash
-curl -fsSL https://github.com/NoobCity99/samwizard/releases/download/test2/install.sh -o install.sh
-sudo bash install.sh
+curl -fsSL https://github.com/NoobCity99/samwizard/releases/download/test2/samwizard.sh -o samwizard.sh
+sudo bash samwizard.sh
 ```
 
 The installer will:
@@ -122,7 +122,7 @@ Use a real Ubuntu Server machine or VM with systemd. Attach one known-safe
 existing drive or partition that already has a filesystem and UUID. The wizard
 does not format, erase, or repartition drives.
 
-1. Install Samba Wizard with the release `install.sh`.
+1. Install Samba Wizard with the release `samwizard.sh`.
 
 2. Open the printed URL from the Windows laptop. Also open the live log page:
 
@@ -136,14 +136,14 @@ does not format, erase, or repartition drives.
    internet recheck. If ethernet is connected instead, click **OK, I connected
    ethernet** and confirm the check passes.
 
-4. On Drive Selection, choose the real eligible drive partition, not the server
-   folder option. Eligible means Linux reports it as a partition with a
-   filesystem and UUID.
+4. On Drive Selection, choose the real eligible external or additional drive
+   partition. Eligible means Linux reports it as a partition with a filesystem
+   and UUID, and it is not part of the server's operating system drive.
 
 5. Complete Share Name, User Setup, Review, and Apply. Apply should install or
    verify Samba, write a UUID-based `/etc/fstab` entry, mount under
-   `/srv/samba/drives/`, create the share folder, update Samba config, validate
-   with `testparm`, and restart or reload Samba.
+   `/srv/samba/drives/`, share the mounted drive root, update Samba config,
+   validate with `testparm`, and restart or reload Samba.
 
 6. On Done, copy the Windows path, for example:
 

@@ -66,7 +66,8 @@ def system_checks_from_info(system_info: dict[str, Any]) -> list[dict[str, Any]]
             "summary": samba.get("message")
             or "This check only looks for Samba. It does not install anything.",
             "critical": False,
-            "details": samba.get("evidence") or ["Samba is not yet installed, which is perfect, that's what we're here to do!."],
+            "details": _samba_details(samba),
+            "actions": _samba_actions(samba),
         },
         {
             "id": "drives",
@@ -118,6 +119,34 @@ def _os_details(os_info: dict[str, Any]) -> list[str]:
     if os_info.get("source"):
         details.append(f"Source: {os_info['source']}")
     return details
+
+
+def _samba_details(samba: dict[str, Any]) -> list[str]:
+    if not samba.get("installed"):
+        return samba.get("evidence") or ["Samba is not yet installed, which is perfect, that's what we're here to do!."]
+
+    details = list(samba.get("evidence") or [])
+    user_count = int(samba.get("user_count") or 0)
+    shares = samba.get("shares") or []
+    active_sessions = samba.get("active_sessions") or []
+    details.append(f"Configured Samba users: {user_count}.")
+    details.append(f"Configured shares: {len(shares)}.")
+    details.append(f"Active connections: {len(active_sessions)}.")
+    if samba.get("service_status"):
+        details.append(f"Service status: {samba['service_status']}.")
+    return details
+
+
+def _samba_actions(samba: dict[str, Any]) -> list[dict[str, str]]:
+    if not samba.get("installed"):
+        return []
+    return [
+        {
+            "label": "See your Samba System",
+            "href": "/samba-system",
+            "target": "_blank",
+        }
+    ]
 
 
 def _drive_details(drives: list[dict[str, Any]], limit: int = 8) -> list[str]:

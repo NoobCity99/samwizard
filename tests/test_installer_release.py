@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 class InstallerReleaseTests(unittest.TestCase):
     def test_install_script_has_valid_bash_syntax(self):
         result = subprocess.run(
-            ["bash", "-n", str(REPO_ROOT / "install.sh")],
+            ["bash", "-n", str(REPO_ROOT / "samwizard.sh")],
             capture_output=True,
             check=False,
             text=True,
@@ -22,7 +22,7 @@ class InstallerReleaseTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_install_script_contains_expected_service_contract(self):
-        content = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
+        content = (REPO_ROOT / "samwizard.sh").read_text(encoding="utf-8")
 
         self.assertIn("/opt/samwizard", content)
         self.assertIn("/etc/samwizard/samwizard.env", content)
@@ -31,6 +31,10 @@ class InstallerReleaseTests(unittest.TestCase):
         self.assertIn("samwizard-app.tar.gz", content)
         self.assertIn("systemctl enable samwizard", content)
         self.assertIn("ufw", content)
+        self.assertIn("ntfs-3g", content)
+        self.assertIn("exfatprogs", content)
+        self.assertIn("hfsplus", content)
+        self.assertIn("hfsprogs", content)
 
     def test_release_bundle_contains_app_files_and_excludes_local_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -231,45 +231,62 @@ def parse_os_release(content: str) -> dict[str, str]:
 
 def detect_samba(command_runner: CommandRunner = run_command) -> dict[str, Any]:
     evidence: list[str] = []
+    installed = False
+    version: str | None = None
 
     for args in (["smbd", "--version"], ["samba", "--version"], ["testparm", "-V"]):
         result = command_runner(args)
         if result and result.returncode == 0:
             version = _first_non_empty_line(result.stdout) or "Samba command responded"
             evidence.append(f"{args[0]} responded: {version}")
-            return {
-                "available": True,
-                "installed": True,
-                "status": "found",
-                "version": version,
-                "evidence": evidence,
-                "message": "Samba appears to be installed.",
-            }
+            installed = True
+            break
 
-    dpkg_result = command_runner(
-        [
-            "dpkg-query",
-            "-W",
-            "-f=${binary:Package}\t${Version}\t${Status}\n",
-            "samba",
-            "smbd",
-            "samba-common-bin",
-        ]
-    )
-    if dpkg_result:
-        for line in dpkg_result.stdout.splitlines():
-            parts = line.split("\t")
-            if len(parts) >= 3 and "install ok installed" in parts[2]:
-                package, version = parts[0], parts[1]
-                evidence.append(f"{package} package is installed: {version}")
-                return {
-                    "available": True,
-                    "installed": True,
-                    "status": "found",
-                    "version": version,
-                    "evidence": evidence,
-                    "message": "Samba appears to be installed.",
-                }
+    if not installed:
+        dpkg_result = command_runner(
+            [
+                "dpkg-query",
+                "-W",
+                "-f=${binary:Package}\t${Version}\t${Status}\n",
+                "samba",
+                "smbd",
+                "samba-common-bin",
+            ]
+        )
+        if dpkg_result:
+            for line in dpkg_result.stdout.splitlines():
+                parts = line.split("\t")
+                if len(parts) >= 3 and "install ok installed" in parts[2]:
+                    package, version = parts[0], parts[1]
+                    evidence.append(f"{package} package is installed: {version}")
+                    installed = True
+                    break
+
+    if installed:
+        users, user_details = detect_samba_users(command_runner)
+        shares, share_details = detect_samba_shares(command_runner)
+        active_sessions, session_details = detect_samba_active_sessions(command_runner)
+        service_status, service_details = detect_samba_service(command_runner)
+        evidence.extend(user_details)
+        evidence.extend(share_details)
+        evidence.extend(session_details)
+        evidence.extend(service_details)
+        setup_mode, setup_message = samba_setup_mode(users)
+        return {
+            "available": True,
+            "installed": True,
+            "status": "found",
+            "version": version,
+            "evidence": evidence,
+            "message": setup_message,
+            "users": users,
+            "user_count": len(users),
+            "shares": shares,
+            "active_sessions": active_sessions,
+            "service_status": service_status,
+            "setup_mode": setup_mode,
+            "setup_message": setup_message,
+        }
 
     return {
         "available": True,
@@ -278,7 +295,133 @@ def detect_samba(command_runner: CommandRunner = run_command) -> dict[str, Any]:
         "version": None,
         "evidence": evidence,
         "message": "Samba was not found. Nothing was installed or changed.",
+        "users": [],
+        "user_count": 0,
+        "shares": [],
+        "active_sessions": [],
+        "service_status": "unknown",
+        "setup_mode": "initial_setup",
+        "setup_message": "Samba was not found. Nothing was installed or changed.",
     }
+
+
+def detect_samba_users(command_runner: CommandRunner = run_command) -> tuple[list[dict[str, Any]], list[str]]:
+    result = command_runner(["pdbedit", "-L"])
+    if not result:
+        return [], ["Samba users could not be checked because pdbedit did not respond."]
+    if result.returncode != 0:
+        return [], [f"Samba users could not be checked: pdbedit exited {result.returncode}."]
+    users = parse_pdbedit_users(result.stdout)
+    count = len(users)
+    return users, [f"Samba users found: {count}."]
+
+
+def parse_pdbedit_users(output: str) -> list[dict[str, Any]]:
+    users: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        username, separator, rest = line.partition(":")
+        username = username.strip()
+        if not separator or not username or username in seen:
+            continue
+        seen.add(username)
+        display_name = rest.split(":", 1)[-1].strip() if ":" in rest else ""
+        users.append({"name": username, "display_name": display_name})
+    return users
+
+
+def detect_samba_shares(command_runner: CommandRunner = run_command) -> tuple[list[dict[str, Any]], list[str]]:
+    result = command_runner(["testparm", "-s"])
+    if not result:
+        return [], ["Samba shares could not be checked because testparm did not respond."]
+    if result.returncode != 0:
+        return [], [f"Samba shares could not be checked: testparm exited {result.returncode}."]
+    shares = parse_testparm_shares(result.stdout + "\n" + result.stderr)
+    return shares, [f"Samba shares found: {len(shares)}."]
+
+
+def parse_testparm_shares(output: str) -> list[dict[str, Any]]:
+    ignored = {"global", "homes", "printers", "print$"}
+    shares: list[dict[str, Any]] = []
+    current: dict[str, Any] | None = None
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            name = line[1:-1].strip()
+            current = None
+            if name and name.lower() not in ignored:
+                current = {"name": name, "path": None}
+                shares.append(current)
+            continue
+        if current is not None and "=" in line:
+            key, value = [part.strip() for part in line.split("=", 1)]
+            if key.lower() == "path":
+                current["path"] = value
+    return shares
+
+
+def detect_samba_active_sessions(command_runner: CommandRunner = run_command) -> tuple[list[dict[str, Any]], list[str]]:
+    result = command_runner(["smbstatus"])
+    if not result:
+        return [], ["Samba active sessions could not be checked because smbstatus did not respond."]
+    if result.returncode != 0:
+        return [], [f"Samba active sessions could not be checked: smbstatus exited {result.returncode}."]
+    sessions = parse_smbstatus_sessions(result.stdout)
+    return sessions, [f"Samba active sessions found: {len(sessions)}."]
+
+
+def parse_smbstatus_sessions(output: str) -> list[dict[str, Any]]:
+    sessions: list[dict[str, Any]] = []
+    in_pid_section = False
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("PID") and "Username" in line:
+            in_pid_section = True
+            continue
+        if in_pid_section and set(line) <= {"-"}:
+            continue
+        if in_pid_section:
+            if line.startswith("Service") or line.startswith("Locked files:"):
+                break
+            parts = line.split()
+            if len(parts) >= 2 and parts[0].isdigit():
+                sessions.append({"pid": parts[0], "username": parts[1]})
+    return sessions
+
+
+def detect_samba_service(command_runner: CommandRunner = run_command) -> tuple[str, list[str]]:
+    result = command_runner(["systemctl", "is-active", "smbd"])
+    if result and result.returncode == 0:
+        status = _first_non_empty_line(result.stdout) or "active"
+        return status, [f"Samba service status: {status}."]
+    if result:
+        return "unknown", [f"Samba service status could not be confirmed: systemctl exited {result.returncode}."]
+    return "unknown", ["Samba service status could not be checked because systemctl did not respond."]
+
+
+def samba_setup_mode(users: list[dict[str, Any]]) -> tuple[str, str]:
+    if len(users) == 1:
+        username = users[0].get("name") or "the existing Samba user"
+        return (
+            "add_drive",
+            f"Samba is installed with one existing user, {username}. The wizard can add another drive for that user.",
+        )
+    if len(users) > 1:
+        return (
+            "unsupported_existing_samba",
+            "Samba is installed with multiple users. SamWizard stops here instead of guessing which account should own a new share.",
+        )
+    return (
+        "initial_setup",
+        "Samba appears to be installed, but no Samba users were found. Continue with first-time setup.",
+    )
 
 
 def detect_drives(command_runner: CommandRunner = run_command) -> dict[str, Any]:
@@ -444,10 +587,23 @@ def _first_non_empty_line(value: str) -> str | None:
 def _flatten_block_devices(data: dict[str, Any]) -> list[dict[str, Any]]:
     flattened: list[dict[str, Any]] = []
 
-    def walk(device: dict[str, Any]) -> None:
-        flattened.append(device)
+    def walk(
+        device: dict[str, Any],
+        parent: dict[str, Any] | None = None,
+        parent_disk: dict[str, Any] | None = None,
+    ) -> None:
+        current = dict(device)
+        if parent:
+            current["_parent_name"] = parent.get("name")
+            current["_parent_path"] = parent.get("path") or _path_from_name(parent.get("name"))
+            current["_parent_type"] = parent.get("type")
+        disk = current if current.get("type") == "disk" else parent_disk
+        if disk:
+            current["_parent_disk_name"] = disk.get("name")
+            current["_parent_disk_path"] = disk.get("path") or _path_from_name(disk.get("name"))
+        flattened.append(current)
         for child in device.get("children") or []:
-            walk(child)
+            walk(child, current, disk)
 
     for device in data.get("blockdevices") or []:
         walk(device)
@@ -474,6 +630,11 @@ def _normalize_block_device(device: dict[str, Any]) -> dict[str, Any]:
         "label": device.get("label"),
         "model": _clean_optional_text(device.get("model")),
         "uuid": device.get("uuid"),
+        "parent_name": device.get("_parent_name"),
+        "parent_path": device.get("_parent_path"),
+        "parent_type": device.get("_parent_type"),
+        "parent_disk_name": device.get("_parent_disk_name"),
+        "parent_disk_path": device.get("_parent_disk_path"),
     }
 
 

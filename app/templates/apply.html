@@ -4,22 +4,30 @@
 
 {% block content %}
   <p class="lead">
-    Enter the Windows share password, then apply the setup to this server.
+    {% if add_drive_mode %}
+      Add this drive to the existing Samba setup for {{ state.username }}.
+    {% else %}
+      Enter the Windows share password, then apply the setup to this server.
+    {% endif %}
   </p>
 
   <form method="post" action="/apply">
-    <label class="field">
-      <span>Windows share password</span>
-      <input type="password" name="samba_password" autocomplete="new-password" required>
-    </label>
-    <label class="field">
-      <span>Confirm password</span>
-      <input type="password" name="confirm_samba_password" autocomplete="new-password" required>
-    </label>
-    <p class="hint">This password is sent directly to Samba during Apply. It is not stored in the session.</p>
+    {% if add_drive_mode %}
+      <p class="hint">No password is needed here. SamWizard will reuse the existing Samba user and leave that password unchanged.</p>
+    {% else %}
+      <label class="field">
+        <span>Windows share password</span>
+        <input type="password" name="samba_password" autocomplete="new-password" required>
+      </label>
+      <label class="field">
+        <span>Confirm password</span>
+        <input type="password" name="confirm_samba_password" autocomplete="new-password" required>
+      </label>
+      <p class="hint">This password is sent directly to Samba during Apply. It is not stored in the session.</p>
+    {% endif %}
     <div class="actions split">
       <a href="/review" class="secondary">Back</a>
-      <button type="submit">Apply setup</button>
+      <button type="submit">{{ "Add this drive" if add_drive_mode else "Apply setup" }}</button>
     </div>
   </form>
 

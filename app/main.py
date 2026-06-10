@@ -15,8 +15,12 @@ from app.command_log import (
     logged_detection_runner,
 )
 from app.share_targets import (
+    DEFAULT_MOUNT_ACCESS,
     drive_diagnostics,
     has_eligible_drive,
+    mount_access_error,
+    mount_access_label,
+    normalize_mount_access,
     safe_name,
     selected_location_from,
     share_locations,
@@ -45,6 +49,18 @@ STEP_ORDER = [
     "Apply",
     "Done",
 ]
+ADD_DRIVE_STEP_ORDER = [
+    "Welcome",
+    "System Check",
+    "Drive Selection",
+    "Share Name",
+    "Review",
+    "Apply",
+    "Done",
+]
+SETUP_MODE_INITIAL = "initial_setup"
+SETUP_MODE_ADD_DRIVE = "add_drive"
+SETUP_MODE_UNSUPPORTED = "unsupported_existing_samba"
 
 
 def wizard_state(request: Request) -> dict[str, Any]:
@@ -61,9 +77,44 @@ def redirect(path: str) -> RedirectResponse:
 
 def selected_location(state: dict[str, Any]) -> dict[str, Any] | None:
     location = state.get("selected_location")
-    if isinstance(location, dict):
+    if isinstance(location, dict) and location.get("type") == "drive":
         return location
     return None
+
+
+def setup_mode(state: dict[str, Any]) -> str:
+    mode = state.get("samba_setup_mode")
+    if mode in {SETUP_MODE_INITIAL, SETUP_MODE_ADD_DRIVE, SETUP_MODE_UNSUPPORTED}:
+        return mode
+    return SETUP_MODE_INITIAL
+
+
+def is_add_drive_mode(state: dict[str, Any]) -> bool:
+    return setup_mode(state) == SETUP_MODE_ADD_DRIVE
+
+
+def step_order_for_state(state: dict[str, Any]) -> list[str]:
+    if is_add_drive_mode(state):
+        return ADD_DRIVE_STEP_ORDER
+    return STEP_ORDER
+
+
+def apply_samba_setup_mode(state: dict[str, Any], system_info: dict[str, Any]) -> str:
+    samba = system_info.get("samba", {})
+    mode = samba.get("setup_mode") or SETUP_MODE_INITIAL
+    if mode not in {SETUP_MODE_INITIAL, SETUP_MODE_ADD_DRIVE, SETUP_MODE_UNSUPPORTED}:
+        mode = SETUP_MODE_INITIAL
+
+    state["samba_setup_mode"] = mode
+    state["samba_setup_message"] = samba.get("setup_message") or samba.get("message")
+
+    users = samba.get("users") or []
+    if mode == SETUP_MODE_ADD_DRIVE and len(users) == 1:
+        state["username"] = users[0].get("name") or ""
+        state["existing_samba_user"] = state["username"]
+    elif mode != SETUP_MODE_ADD_DRIVE:
+        state.pop("existing_samba_user", None)
+    return mode
 
 
 def system_checks_for_request(request: Request) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -148,15 +199,18 @@ def context(request: Request, step: str, **extra: Any) -> dict[str, Any]:
     state = wizard_state(request)
     command_log_id_from_state(state)
     system = extra.pop("system", None) or system_summary()
+    steps = step_order_for_state(state)
     base = {
         "request": request,
         "step": step,
-        "steps": STEP_ORDER,
-        "step_index": STEP_ORDER.index(step) + 1,
-        "step_count": len(STEP_ORDER),
+        "steps": steps,
+        "step_index": steps.index(step) + 1 if step in steps else 1,
+        "step_count": len(steps),
         "state": state,
         "system": system,
         "selected_location": selected_location(state),
+        "mount_access_label": mount_access_label,
+        "add_drive_mode": is_add_drive_mode(state),
     }
     base.update(extra)
     return base
@@ -184,13 +238,37 @@ def system_check(request: Request, wifi: str | None = None):
     return system_check_page(request)
 
 
+@app.get("/samba-system")
+def samba_system(request: Request):
+    state = wizard_state(request)
+    system_info = detect_system_info(command_runner=logged_detection_runner(state, phase="Samba System"))
+    return templates.TemplateResponse(
+        "samba_system.html",
+        context(
+            request,
+            "System Check",
+            samba=system_info.get("samba", {}),
+            system=system_summary(system_info),
+        ),
+    )
+
+
 @app.post("/system-check")
 def system_check_next(request: Request):
-    checks, _system_info = system_checks_for_request(request)
+    checks, system_info = system_checks_for_request(request)
+    state = wizard_state(request)
+    mode = apply_samba_setup_mode(state, system_info)
+    request.session["wizard"] = state
     if unresolved_critical_checks(checks):
         return system_check_page(
             request,
             error="Resolve the critical checks before continuing.",
+        )
+    if mode == SETUP_MODE_UNSUPPORTED:
+        return system_check_page(
+            request,
+            error=state.get("samba_setup_message")
+            or "SamWizard found multiple Samba users and cannot choose which account should own a new share.",
         )
     return redirect("/drive-selection")
 
@@ -261,10 +339,15 @@ def drive_selection(request: Request):
 
 
 @app.post("/drive-selection")
-def save_drive_selection(request: Request, location_id: str = Form("")):
+def save_drive_selection(
+    request: Request,
+    location_id: str = Form(""),
+    mount_access: str = Form(DEFAULT_MOUNT_ACCESS),
+):
     state = wizard_state(request)
     system_info = detect_system_info(command_runner=logged_detection_runner(state))
     location = selected_location_from(location_id, system_info)
+    selected_access = normalize_mount_access(mount_access)
     if location is None:
         return templates.TemplateResponse(
             "drive_selection.html",
@@ -275,11 +358,32 @@ def save_drive_selection(request: Request, location_id: str = Form("")):
                 drive_diagnostics=drive_diagnostics(system_info),
                 has_eligible_drive=has_eligible_drive(system_info),
                 system=system_summary(system_info),
-                error="Choose a drive or folder to continue.",
+                error="Choose an external or additional drive to continue.",
             ),
             status_code=400,
         )
 
+    access_error = mount_access_error(location, selected_access)
+    if access_error:
+        return templates.TemplateResponse(
+            "drive_selection.html",
+            context(
+                request,
+                "Drive Selection",
+                locations=share_locations(system_info),
+                drive_diagnostics=drive_diagnostics(system_info),
+                has_eligible_drive=has_eligible_drive(system_info),
+                system=system_summary(system_info),
+                error=access_error,
+            ),
+            status_code=400,
+        )
+
+    if location.get("type") == "drive":
+        location["mount_access"] = selected_access
+        state["mount_access"] = selected_access
+    else:
+        state.pop("mount_access", None)
     state["location_id"] = location_id
     state["selected_location"] = location
     request.session["wizard"] = state
@@ -309,12 +413,17 @@ def save_share_name(request: Request, share_name: str = Form("")):
     state = wizard_state(request)
     state["share_name"] = clean_name
     request.session["wizard"] = state
+    if is_add_drive_mode(state):
+        return redirect("/review")
     return redirect("/user-setup")
 
 
 @app.get("/user-setup")
 def user_setup(request: Request):
-    if not wizard_state(request).get("share_name"):
+    state = wizard_state(request)
+    if is_add_drive_mode(state):
+        return redirect("/review" if state.get("share_name") else "/share-name")
+    if not state.get("share_name"):
         return redirect("/share-name")
     return templates.TemplateResponse(
         "user_setup.html",
@@ -327,6 +436,10 @@ def save_user_setup(
     request: Request,
     username: str = Form(""),
 ):
+    state = wizard_state(request)
+    if is_add_drive_mode(state):
+        return redirect("/review" if state.get("share_name") else "/share-name")
+
     clean_username = username.strip()
     if not clean_username:
         error = "Enter a username for the private share."
@@ -340,7 +453,6 @@ def save_user_setup(
             status_code=400,
         )
 
-    state = wizard_state(request)
     state["username"] = clean_username
     state.pop("password_confirmed", None)
     request.session["wizard"] = state
@@ -355,7 +467,7 @@ def review(request: Request):
     if not state.get("share_name"):
         return redirect("/share-name")
     if not state.get("username"):
-        return redirect("/user-setup")
+        return redirect("/system-check" if is_add_drive_mode(state) else "/user-setup")
 
     return templates.TemplateResponse("review.html", context(request, "Review"))
 
@@ -388,13 +500,14 @@ def run_apply(
     state = wizard_state(request)
     if not state.get("reviewed"):
         return redirect("/review")
-    if not samba_password:
+    add_drive = is_add_drive_mode(state)
+    if not add_drive and not samba_password:
         return templates.TemplateResponse(
             "apply.html",
             context(request, "Apply", results=state.get("apply_results", []), error="Enter the Windows share password."),
             status_code=400,
         )
-    if samba_password != confirm_samba_password:
+    if not add_drive and samba_password != confirm_samba_password:
         return templates.TemplateResponse(
             "apply.html",
             context(request, "Apply", results=state.get("apply_results", []), error="The passwords do not match."),
@@ -402,14 +515,17 @@ def run_apply(
         )
 
     location = selected_location(state)
-    if location is None or not state.get("share_name") or not state.get("username"):
+    if location is None:
+        return redirect("/drive-selection")
+    if not state.get("share_name") or not state.get("username"):
         return redirect("/review")
 
     results = apply_share_setup(
         location=location,
         share_name=state["share_name"],
         username=state["username"],
-        password=samba_password,
+        password=samba_password if not add_drive else None,
+        create_user=not add_drive,
         command_runner=logged_command_runner(state, "Apply"),
     )
     state["selected_location"] = location

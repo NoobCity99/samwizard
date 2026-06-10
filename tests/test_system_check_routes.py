@@ -8,14 +8,19 @@ if find_spec("fastapi") is None:
 
 from app.command_log import add_log_entry, command_log_from_state
 from app.main import (
+    apply_setup,
     clear_log,
     drive_selection,
     logs_data,
     logs_page,
+    review,
     run_apply,
+    samba_system,
     save_drive_selection,
+    save_share_name,
     save_user_setup,
     system_check_next,
+    user_setup,
     wifi_preview,
 )
 
@@ -29,6 +34,20 @@ class FakeRequest:
         if name == "static":
             return f"/static{path_params.get('path', '')}"
         return f"/{name}"
+
+
+def selected_drive_state(**extra):
+    state = {
+        "type": "drive",
+        "path": "/dev/sdb1",
+        "uuid": "drive-uuid",
+        "filesystem": "ext4",
+        "mount_path": "/srv/samba/drives/Backup-Drive",
+        "name": "Backup Drive",
+        "mount_access": "read_write",
+    }
+    state.update(extra)
+    return state
 
 
 def system_info(internet_connected=True):
@@ -97,6 +116,37 @@ def system_info(internet_connected=True):
     }
 
 
+def samba_info(*, users=None):
+    info = system_info(True)
+    users = users or []
+    if users:
+        setup_mode = "add_drive" if len(users) == 1 else "unsupported_existing_samba"
+        setup_message = (
+            f"Samba is installed with one existing user, {users[0]['name']}."
+            if len(users) == 1
+            else "Samba is installed with multiple users."
+        )
+    else:
+        setup_mode = "initial_setup"
+        setup_message = "Samba appears to be installed, but no Samba users were found."
+    info["samba"] = {
+        "available": True,
+        "installed": True,
+        "status": "found",
+        "version": "Version 4.21.0-Ubuntu",
+        "evidence": ["smbd responded: Version 4.21.0-Ubuntu"],
+        "message": setup_message,
+        "users": users,
+        "user_count": len(users),
+        "shares": [{"name": "Backups", "path": "/srv/samba/drives/Backups"}],
+        "active_sessions": [],
+        "service_status": "active",
+        "setup_mode": setup_mode,
+        "setup_message": setup_message,
+    }
+    return info
+
+
 class SystemCheckRouteTests(unittest.TestCase):
     def test_system_check_post_blocks_when_internet_is_missing(self):
         request = FakeRequest()
@@ -116,6 +166,34 @@ class SystemCheckRouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 303)
         self.assertEqual(response.headers["location"], "/drive-selection")
+        self.assertEqual(request.session["wizard"]["samba_setup_mode"], "initial_setup")
+
+    def test_system_check_post_uses_single_existing_samba_user_for_add_drive_mode(self):
+        request = FakeRequest()
+
+        with patch("app.main.detect_system_info", return_value=samba_info(users=[{"name": "sambauser"}])):
+            response = system_check_next(request)
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/drive-selection")
+        self.assertEqual(request.session["wizard"]["samba_setup_mode"], "add_drive")
+        self.assertEqual(request.session["wizard"]["username"], "sambauser")
+        self.assertEqual(request.session["wizard"]["existing_samba_user"], "sambauser")
+
+    def test_system_check_post_stops_when_multiple_samba_users_exist(self):
+        request = FakeRequest()
+
+        with patch(
+            "app.main.detect_system_info",
+            return_value=samba_info(users=[{"name": "sambauser"}, {"name": "otheruser"}]),
+        ):
+            response = system_check_next(request)
+
+        self.assertEqual(response.status_code, 200)
+        body = response.body.decode()
+        self.assertIn("multiple users", body)
+        self.assertIn('href="/samba-system"', body)
+        self.assertEqual(request.session["wizard"]["samba_setup_mode"], "unsupported_existing_samba")
 
     def test_wifi_preview_validates_missing_fields(self):
         request = FakeRequest()
@@ -273,15 +351,29 @@ class SystemCheckRouteTests(unittest.TestCase):
         self.assertEqual(request.session["wizard"]["username"], "sambauser")
         self.assertNotIn("password", repr(request.session).lower())
 
+    def test_add_drive_flow_skips_user_setup_after_share_name(self):
+        request = FakeRequest(
+            {
+                "samba_setup_mode": "add_drive",
+                "username": "sambauser",
+                "selected_location": selected_drive_state(),
+            }
+        )
+
+        response = save_share_name(request, share_name="Media")
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/review")
+
+        response = user_setup(request)
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/review")
+
     def test_apply_blocks_when_system_actions_report_root_required(self):
         request = FakeRequest(
             {
                 "reviewed": True,
-                "selected_location": {
-                    "type": "server_folder",
-                    "path": "/srv/samba/testshare",
-                    "name": "Server folder on this computer",
-                },
+                "selected_location": selected_drive_state(),
                 "share_name": "Backups",
                 "username": "sambauser",
             }
@@ -312,11 +404,7 @@ class SystemCheckRouteTests(unittest.TestCase):
         request = FakeRequest(
             {
                 "reviewed": True,
-                "selected_location": {
-                    "type": "server_folder",
-                    "path": "/srv/samba/testshare",
-                    "name": "Server folder on this computer",
-                },
+                "selected_location": selected_drive_state(),
                 "share_name": "Backups",
                 "username": "sambauser",
             }
@@ -355,11 +443,7 @@ class SystemCheckRouteTests(unittest.TestCase):
         request = FakeRequest(
             {
                 "reviewed": True,
-                "selected_location": {
-                    "type": "server_folder",
-                    "path": "/srv/samba/testshare",
-                    "name": "Server folder on this computer",
-                },
+                "selected_location": selected_drive_state(),
                 "share_name": "Backups",
                 "username": "sambauser",
             }
@@ -385,6 +469,75 @@ class SystemCheckRouteTests(unittest.TestCase):
         self.assertEqual(response.headers["location"], "/done")
         self.assertNotIn("secret-password", repr(request.session))
 
+    def test_add_drive_apply_accepts_no_password(self):
+        request = FakeRequest(
+            {
+                "samba_setup_mode": "add_drive",
+                "reviewed": True,
+                "selected_location": selected_drive_state(),
+                "share_name": "Backups",
+                "username": "sambauser",
+            }
+        )
+        passed_result = [
+            {
+                "id": "verify_samba",
+                "title": "Check existing Samba",
+                "status": "passed",
+                "summary": "Existing Samba installation is ready.",
+                "details": [],
+            }
+        ]
+
+        with patch("app.main.apply_share_setup", return_value=passed_result) as apply_mock:
+            response = run_apply(request)
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/done")
+        kwargs = apply_mock.call_args.kwargs
+        self.assertIsNone(kwargs["password"])
+        self.assertFalse(kwargs["create_user"])
+
+    def test_add_drive_apply_page_hides_password_fields(self):
+        request = FakeRequest(
+            {
+                "samba_setup_mode": "add_drive",
+                "reviewed": True,
+                "selected_location": selected_drive_state(),
+                "share_name": "Backups",
+                "username": "sambauser",
+            }
+        )
+
+        response = apply_setup(request)
+
+        body = response.body.decode()
+        self.assertIn("Add this drive", body)
+        self.assertNotIn("Windows share password", body)
+
+    def test_stale_server_folder_session_redirects_to_drive_selection(self):
+        request = FakeRequest(
+            {
+                "reviewed": True,
+                "selected_location": {
+                    "type": "server_folder",
+                    "path": "/srv/samba/testshare",
+                    "name": "Server folder on this computer",
+                },
+                "share_name": "Backups",
+                "username": "sambauser",
+            }
+        )
+
+        response = run_apply(
+            request,
+            samba_password="secret-password",
+            confirm_samba_password="secret-password",
+        )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/drive-selection")
+
     def test_drive_selection_accepts_real_eligible_partition(self):
         request = FakeRequest()
 
@@ -394,6 +547,85 @@ class SystemCheckRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 303)
         self.assertEqual(response.headers["location"], "/share-name")
         self.assertEqual(request.session["wizard"]["selected_location"]["uuid"], "drive-uuid")
+        self.assertEqual(request.session["wizard"]["mount_access"], "read_write")
+        self.assertEqual(request.session["wizard"]["selected_location"]["mount_access"], "read_write")
+
+    def test_drive_selection_saves_read_only_access_for_drive(self):
+        request = FakeRequest()
+
+        with patch("app.main.detect_system_info", return_value=system_info(True)):
+            response = save_drive_selection(
+                request,
+                location_id="drive:drive-uuid",
+                mount_access="read_only",
+            )
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(request.session["wizard"]["mount_access"], "read_only")
+        self.assertEqual(request.session["wizard"]["selected_location"]["mount_access"], "read_only")
+
+    def test_drive_selection_blocks_read_write_hfs_drive(self):
+        request = FakeRequest()
+        info = system_info(True)
+        info["drives"]["items"][0]["filesystem"] = "hfsplus"
+
+        with patch("app.main.detect_system_info", return_value=info):
+            response = save_drive_selection(
+                request,
+                location_id="drive:drive-uuid",
+                mount_access="read_write",
+            )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Mac HFS drives can only be shared read-only", response.body.decode())
+
+    def test_review_displays_drive_access(self):
+        request = FakeRequest(
+            {
+                "selected_location": {
+                    "type": "drive",
+                    "name": "Backup Drive",
+                    "mount_path": "/srv/samba/drives/Backup-Drive",
+                    "mount_access": "read_only",
+                },
+                "share_name": "Backups",
+                "username": "sambauser",
+            }
+        )
+
+        response = review(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Drive access", response.body.decode())
+        self.assertIn("Read-only", response.body.decode())
+
+    def test_review_displays_existing_samba_password_message(self):
+        request = FakeRequest(
+            {
+                "samba_setup_mode": "add_drive",
+                "selected_location": selected_drive_state(),
+                "share_name": "Backups",
+                "username": "sambauser",
+            }
+        )
+
+        response = review(request)
+
+        body = response.body.decode()
+        self.assertIn("Existing Samba password stays unchanged", body)
+        self.assertIn('href="/share-name"', body)
+
+    def test_samba_system_page_shows_plain_summary(self):
+        request = FakeRequest()
+
+        with patch("app.main.detect_system_info", return_value=samba_info(users=[{"name": "sambauser"}])):
+            response = samba_system(request)
+
+        body = response.body.decode()
+        self.assertIn("Your Samba system", body)
+        self.assertIn("sambauser", body)
+        self.assertIn("Backups", body)
+        self.assertNotIn("pdbedit -L", body)
 
     def test_logs_page_renders_existing_entries(self):
         request = FakeRequest()
@@ -446,9 +678,12 @@ class SystemCheckRouteTests(unittest.TestCase):
             response = drive_selection(request)
 
         body = response.body.decode()
-        self.assertIn("No share-ready drive partitions were found", body)
+        self.assertIn("No share-ready external or additional drive was found", body)
+        self.assertNotIn("Server folder on this computer", body)
+        self.assertNotIn("Continue</button>", body)
         self.assertIn("missing UUID", body)
         self.assertIn("not a partition", body)
+        self.assertIn("part of the server OS drive", body)
 
 
 if __name__ == "__main__":

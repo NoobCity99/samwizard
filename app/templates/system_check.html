@@ -40,6 +40,17 @@
             {% endfor %}
           </ul>
         {% endif %}
+        {% if check.actions %}
+          <div class="actions inline-actions card-actions">
+            {% for action in check.actions %}
+              <a
+                href="{{ action.href }}"
+                class="secondary"
+                {% if action.target %}target="{{ action.target }}" rel="noopener"{% endif %}
+              >{{ action.label }}</a>
+            {% endfor %}
+          </div>
+        {% endif %}
       </article>
     {% endfor %}
   </section>

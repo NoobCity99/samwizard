@@ -15,6 +15,12 @@
       <dt>Folder path</dt>
       <dd>{{ selected_location.mount_path or selected_location.path }}</dd>
     </div>
+    {% if selected_location.type == "drive" %}
+      <div>
+        <dt>Drive access</dt>
+        <dd>{{ mount_access_label(selected_location.mount_access or state.mount_access) }}</dd>
+      </div>
+    {% endif %}
     <div>
       <dt>Windows share name</dt>
       <dd>{{ state.share_name }}</dd>
@@ -25,14 +31,24 @@
     </div>
     <div>
       <dt>Password</dt>
-      <dd>Entered on the next screen only</dd>
+      <dd>
+        {% if add_drive_mode %}
+          Existing Samba password stays unchanged
+        {% else %}
+          Entered on the next screen only
+        {% endif %}
+      </dd>
     </div>
   </dl>
   <div class="notice">
-    The next screen may install Samba, create folders, update Samba settings, mount a selected drive, and restart Windows file sharing.
+    {% if add_drive_mode %}
+      The next screen will mount the selected drive, add it to the existing Samba setup, and restart Windows file sharing.
+    {% else %}
+      The next screen may install Samba, create folders, update Samba settings, mount a selected drive, and restart Windows file sharing.
+    {% endif %}
   </div>
   <form method="post" action="/review" class="actions split">
-    <a href="/user-setup" class="secondary">Back</a>
+    <a href="{{ '/share-name' if add_drive_mode else '/user-setup' }}" class="secondary">Back</a>
     <button type="submit">Continue to apply</button>
   </form>
 {% endblock %}

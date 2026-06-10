@@ -142,6 +142,8 @@ class SystemInfoTests(unittest.TestCase):
 
         self.assertTrue(result["installed"])
         self.assertEqual(result["version"], "Version 4.21.0-Ubuntu")
+        self.assertEqual(result["user_count"], 0)
+        self.assertEqual(result["setup_mode"], "initial_setup")
 
     def test_detect_samba_uses_dpkg_fallback(self):
         result = detect_samba(
@@ -172,6 +174,58 @@ class SystemInfoTests(unittest.TestCase):
         self.assertTrue(result["available"])
         self.assertFalse(result["installed"])
         self.assertIn("Nothing was installed or changed", result["message"])
+
+    def test_detect_samba_reports_single_user_add_drive_mode(self):
+        smbstatus = """
+Samba version 4.21.0-Ubuntu
+PID     Username     Group        Machine                                   Protocol Version
+----------------------------------------------------------------------------------------
+1234    sambauser    sambauser    192.168.1.20 (ipv4:192.168.1.20:51234)   SMB3_11
+        """
+        result = detect_samba(
+            runner_for(
+                {
+                    ("smbd", "--version"): (0, "Version 4.21.0-Ubuntu\n", ""),
+                    ("pdbedit", "-L"): (0, "sambauser:1001:Samba User\n", ""),
+                    ("testparm", "-s"): (
+                        0,
+                        "[global]\n\tserver role = standalone server\n[Backups]\n\tpath = /srv/samba/drives/Backups\n",
+                        "",
+                    ),
+                    ("smbstatus",): (0, smbstatus, ""),
+                    ("systemctl", "is-active", "smbd"): (0, "active\n", ""),
+                }
+            )
+        )
+
+        self.assertEqual(result["setup_mode"], "add_drive")
+        self.assertEqual(result["user_count"], 1)
+        self.assertEqual(result["users"][0]["name"], "sambauser")
+        self.assertEqual(result["shares"][0]["name"], "Backups")
+        self.assertEqual(result["shares"][0]["path"], "/srv/samba/drives/Backups")
+        self.assertEqual(result["active_sessions"][0]["username"], "sambauser")
+        self.assertEqual(result["service_status"], "active")
+
+    def test_detect_samba_reports_multiple_users_unsupported(self):
+        result = detect_samba(
+            runner_for(
+                {
+                    ("smbd", "--version"): (0, "Version 4.21.0-Ubuntu\n", ""),
+                    ("pdbedit", "-L"): (
+                        0,
+                        "sambauser:1001:Samba User\notheruser:1002:Other User\n",
+                        "",
+                    ),
+                    ("testparm", "-s"): (0, "", ""),
+                    ("smbstatus",): (0, "", ""),
+                    ("systemctl", "is-active", "smbd"): (0, "active\n", ""),
+                }
+            )
+        )
+
+        self.assertEqual(result["setup_mode"], "unsupported_existing_samba")
+        self.assertEqual(result["user_count"], 2)
+        self.assertIn("multiple users", result["setup_message"])
 
     def test_detect_drives_parses_lsblk_json(self):
         lsblk_json = """
@@ -220,6 +274,8 @@ class SystemInfoTests(unittest.TestCase):
         self.assertEqual(len(result["items"]), 2)
         self.assertEqual(result["items"][0]["size"], "1.0 GB")
         self.assertEqual(result["items"][1]["mountpoints"], ["/"])
+        self.assertEqual(result["items"][1]["parent_disk_name"], "sda")
+        self.assertEqual(result["items"][1]["parent_disk_path"], "/dev/sda")
 
     def test_detect_mounts_parses_findmnt_json(self):
         findmnt_json = """

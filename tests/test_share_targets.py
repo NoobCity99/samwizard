@@ -1,7 +1,6 @@
 import unittest
 
 from app.share_targets import (
-    SERVER_FOLDER_ID,
     drive_diagnostics,
     has_eligible_drive,
     safe_name,
@@ -14,14 +13,38 @@ class ShareTargetTests(unittest.TestCase):
         self.assertEqual(safe_name("Family Photos!"), "Family-Photos")
         self.assertEqual(safe_name(""), "share")
 
-    def test_share_locations_include_server_folder_and_eligible_partitions(self):
+    def test_share_locations_include_only_eligible_non_os_partitions(self):
         system_info = {
             "drives": {
                 "items": [
                     {
+                        "name": "sda",
+                        "path": "/dev/sda",
                         "type": "disk",
                         "uuid": "disk-uuid",
                         "filesystem": "ext4",
+                    },
+                    {
+                        "type": "part",
+                        "uuid": "root-uuid",
+                        "filesystem": "ext4",
+                        "label": "rootfs",
+                        "path": "/dev/sda1",
+                        "size": "100.0 GB",
+                        "mountpoints": ["/"],
+                        "parent_disk_path": "/dev/sda",
+                        "parent_disk_name": "sda",
+                    },
+                    {
+                        "type": "part",
+                        "uuid": "home-uuid",
+                        "filesystem": "ext4",
+                        "label": "home",
+                        "path": "/dev/sda2",
+                        "size": "400.0 GB",
+                        "mountpoints": [],
+                        "parent_disk_path": "/dev/sda",
+                        "parent_disk_name": "sda",
                     },
                     {
                         "type": "part",
@@ -31,6 +54,8 @@ class ShareTargetTests(unittest.TestCase):
                         "path": "/dev/sdb1",
                         "size": "1.0 TB",
                         "mountpoints": [],
+                        "parent_disk_path": "/dev/sdb",
+                        "parent_disk_name": "sdb",
                     },
                     {
                         "type": "part",
@@ -43,10 +68,10 @@ class ShareTargetTests(unittest.TestCase):
 
         locations = share_locations(system_info)
 
-        self.assertEqual(locations[0]["id"], SERVER_FOLDER_ID)
-        self.assertEqual(len(locations), 2)
-        self.assertEqual(locations[1]["id"], "drive:part-uuid")
-        self.assertEqual(locations[1]["mount_path"], "/srv/samba/drives/Backup-Drive")
+        self.assertEqual(len(locations), 1)
+        self.assertEqual(locations[0]["id"], "drive:part-uuid")
+        self.assertEqual(locations[0]["mount_path"], "/srv/samba/drives/Backup-Drive")
+        self.assertEqual(locations[0]["mount_access"], "read_write")
 
     def test_drive_diagnostics_explain_ineligible_devices(self):
         system_info = {
@@ -78,7 +103,30 @@ class ShareTargetTests(unittest.TestCase):
 
         self.assertFalse(has_eligible_drive(system_info))
         self.assertEqual(diagnostics[0]["reason"], "not a partition, missing UUID, missing filesystem")
-        self.assertEqual(diagnostics[1]["reason"], "missing UUID")
+        self.assertEqual(diagnostics[1]["reason"], "part of the server OS drive, missing UUID")
+
+    def test_apfs_partition_is_reported_as_unsupported(self):
+        system_info = {
+            "drives": {
+                "items": [
+                    {
+                        "name": "sdb1",
+                        "path": "/dev/sdb1",
+                        "type": "part",
+                        "size": "1.0 TB",
+                        "filesystem": "apfs",
+                        "uuid": "apfs-uuid",
+                        "mountpoints": [],
+                    }
+                ]
+            }
+        }
+
+        self.assertFalse(has_eligible_drive(system_info))
+        self.assertEqual(
+            drive_diagnostics(system_info)[0]["reason"],
+            "APFS is not supported by this wizard",
+        )
 
 
 if __name__ == "__main__":

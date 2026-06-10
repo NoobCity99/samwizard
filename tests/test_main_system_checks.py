@@ -94,6 +94,31 @@ class MainSystemCheckTests(unittest.TestCase):
         self.assertEqual(samba_check["status"], "needs_attention")
         self.assertEqual(samba_check["status_label"], "Not found")
         self.assertFalse(samba_check["critical"])
+        self.assertEqual(samba_check["actions"], [])
+
+    def test_samba_installed_card_links_to_system_summary(self):
+        info = sample_info()
+        info["samba"] = {
+            "available": True,
+            "installed": True,
+            "status": "found",
+            "version": "Version 4.21.0-Ubuntu",
+            "evidence": ["smbd responded: Version 4.21.0-Ubuntu"],
+            "message": "Samba appears to be installed.",
+            "users": [{"name": "sambauser"}],
+            "user_count": 1,
+            "shares": [{"name": "Backups", "path": "/srv/samba/drives/Backups"}],
+            "active_sessions": [],
+            "service_status": "active",
+            "setup_mode": "add_drive",
+            "setup_message": "Samba is installed with one existing user.",
+        }
+
+        checks = system_checks_from_info(info)
+        samba_check = next(check for check in checks if check["id"] == "samba_installed")
+
+        self.assertEqual(samba_check["actions"][0]["href"], "/samba-system")
+        self.assertIn("Configured Samba users: 1.", samba_check["details"])
 
     def test_internet_connected_is_not_blocking(self):
         checks = system_checks_from_info(sample_info())
