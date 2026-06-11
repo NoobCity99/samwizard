@@ -71,9 +71,27 @@ class CommandLogTests(unittest.TestCase):
         log = command_log_from_state(state)
         self.assertEqual(result.returncode, 0)
         self.assertEqual(log[0]["stdin"], MASKED_STDIN)
+        self.assertEqual(log[0]["summary"], "Starting command...")
+        self.assertIsNone(log[0]["exit_code"])
+        self.assertEqual(log[1]["stdin"], MASKED_STDIN)
         self.assertNotIn("secret", repr(state))
         self.assertNotIn("secret", repr(log))
-        self.assertEqual(log[0]["stdout"], "done")
+        self.assertEqual(log[1]["stdout"], "done")
+
+    def test_logged_command_runner_marks_timeout(self):
+        state = {}
+
+        def base_runner(args, input_text=None, env=None):
+            return CommandResult(args=args, returncode=124, stderr="timed out", timed_out=True)
+
+        runner = logged_command_runner(state, "Apply", base_runner=base_runner)
+        result = runner(["mount", "/mnt/backups"], None, None)
+
+        log = command_log_from_state(state)
+        self.assertTrue(result.timed_out)
+        self.assertEqual(log[0]["summary"], "Starting command...")
+        self.assertEqual(log[1]["summary"], "Command timed out.")
+        self.assertIn("timed out", log[1]["stderr"])
 
 
 if __name__ == "__main__":

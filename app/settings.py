@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 
-DEV_SESSION_SECRET = "samba-wizard-milestone-1-dev"
+DEV_SESSION_SECRET = "samwizard-dev-session-secret"
 
 
 def session_secret_key() -> str:

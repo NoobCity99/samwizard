@@ -43,7 +43,8 @@ def apply_wifi_setup(
     interface: str,
     ssid: str,
     password: str,
-    command_runner: Callable[[list[str], str | None, dict[str, str] | None], CommandResult] = run_command,
+    command_runner: Callable[[list[str], str | None,
+                              dict[str, str] | None], CommandResult] = run_command,
     root_checker: Callable[[], bool] = is_root,
     netplan_path: Path = NETPLAN_WIFI_PATH,
     internet_checker: Callable[[], dict] = detect_internet_connectivity,
@@ -56,7 +57,7 @@ def apply_wifi_setup(
                 "wifi_root_required",
                 "Administrator access needed",
                 "Restart the wizard with sudo before applying Wi-Fi settings.",
-                ["Example: sudo .venv-wsl/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8080"],
+                ["Example: sudo bash samwizard"],
             ).as_dict()
         ]
 

@@ -33,6 +33,7 @@ class CommandResult:
     returncode: int
     stdout: str = ""
     stderr: str = ""
+    timed_out: bool = False
 
 
 @dataclass(frozen=True)
@@ -72,9 +73,25 @@ def run_command(
             env=command_env,
             input=input_text,
             text=True,
-            timeout=600,
+            timeout=command_timeout(args),
         )
-    except (OSError, subprocess.TimeoutExpired) as exc:
+    except subprocess.TimeoutExpired as exc:
+        timeout = command_timeout(args)
+        stdout = _timeout_output(exc.stdout)
+        stderr = _timeout_output(exc.stderr)
+        detail = f"Command timed out after {timeout} seconds."
+        if stderr:
+            stderr = f"{detail}\n{stderr}"
+        else:
+            stderr = detail
+        return CommandResult(
+            args=args,
+            returncode=124,
+            stdout=stdout,
+            stderr=stderr,
+            timed_out=True,
+        )
+    except OSError as exc:
         return CommandResult(args=args, returncode=1, stderr=str(exc))
     return CommandResult(
         args=args,
@@ -82,6 +99,41 @@ def run_command(
         stdout=completed.stdout,
         stderr=completed.stderr,
     )
+
+
+def command_timeout(args: list[str]) -> int:
+    if not args:
+        return 30
+    command = args[0]
+    if command == "apt-get":
+        return 900
+    if command in {"mount", "smbpasswd"}:
+        return 120
+    if command in {
+        "blkid",
+        "chmod",
+        "chown",
+        "findmnt",
+        "id",
+        "lsblk",
+        "mkdir",
+        "runuser",
+        "service",
+        "smbd",
+        "systemctl",
+        "testparm",
+        "useradd",
+    }:
+        return 30
+    return 60
+
+
+def _timeout_output(value: str | bytes | None) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
 
 
 def is_root() -> bool:

@@ -6,6 +6,14 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.apply_jobs import (
+    STATUS_FAILED,
+    STATUS_PENDING,
+    STATUS_RUNNING,
+    STATUS_SUCCEEDED,
+    get_apply_job,
+    start_apply_job,
+)
 from app.command_log import (
     add_log_entry,
     clear_command_log,
@@ -32,7 +40,7 @@ from app.system_info import detect_internet_connectivity, detect_system_info
 from app.wifi_actions import apply_wifi_setup
 
 
-app = FastAPI(title="Samba Wizard")
+app = FastAPI(title="SamWizard")
 app.add_middleware(SessionMiddleware, secret_key=session_secret_key())
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 
@@ -61,6 +69,7 @@ ADD_DRIVE_STEP_ORDER = [
 SETUP_MODE_INITIAL = "initial_setup"
 SETUP_MODE_ADD_DRIVE = "add_drive"
 SETUP_MODE_UNSUPPORTED = "unsupported_existing_samba"
+RUNNING_JOB_STATUSES = {STATUS_PENDING, STATUS_RUNNING}
 
 
 def wizard_state(request: Request) -> dict[str, Any]:
@@ -106,7 +115,8 @@ def apply_samba_setup_mode(state: dict[str, Any], system_info: dict[str, Any]) -
         mode = SETUP_MODE_INITIAL
 
     state["samba_setup_mode"] = mode
-    state["samba_setup_message"] = samba.get("setup_message") or samba.get("message")
+    state["samba_setup_message"] = samba.get(
+        "setup_message") or samba.get("message")
 
     users = samba.get("users") or []
     if mode == SETUP_MODE_ADD_DRIVE and len(users) == 1:
@@ -170,6 +180,9 @@ def system_check_page(
     wifi_results = check_state.get("wifi_results", [])
     show_wifi = bool(check_state.get("show_wifi"))
     internet_connected = bool(system_info.get("internet", {}).get("connected"))
+    state = wizard_state(request)
+    state["system_summary"] = system_summary(system_info)
+    request.session["wizard"] = state
 
     return templates.TemplateResponse(
         "system_check.html",
@@ -193,6 +206,21 @@ def system_summary(system_info: dict[str, Any] | None = None) -> dict[str, str]:
     if system_info is None:
         system_info = detect_system_info()
     return build_system_summary(system_info)
+
+
+def cached_system_summary(state: dict[str, Any]) -> dict[str, str]:
+    cached = state.get("system_summary")
+    if isinstance(cached, dict):
+        return {
+            "hostname": str(cached.get("hostname") or "this-server"),
+            "ip_address": str(cached.get("ip_address") or "localhost"),
+            "ubuntu_version": str(cached.get("ubuntu_version") or "Unknown Linux version"),
+        }
+    return {
+        "hostname": "this-server",
+        "ip_address": "localhost",
+        "ubuntu_version": "Unknown Linux version",
+    }
 
 
 def context(request: Request, step: str, **extra: Any) -> dict[str, Any]:
@@ -241,7 +269,8 @@ def system_check(request: Request, wifi: str | None = None):
 @app.get("/samba-system")
 def samba_system(request: Request):
     state = wizard_state(request)
-    system_info = detect_system_info(command_runner=logged_detection_runner(state, phase="Samba System"))
+    system_info = detect_system_info(
+        command_runner=logged_detection_runner(state, phase="Samba System"))
     return templates.TemplateResponse(
         "samba_system.html",
         context(
@@ -258,6 +287,7 @@ def system_check_next(request: Request):
     checks, system_info = system_checks_for_request(request)
     state = wizard_state(request)
     mode = apply_samba_setup_mode(state, system_info)
+    state["system_summary"] = system_summary(system_info)
     request.session["wizard"] = state
     if unresolved_critical_checks(checks):
         return system_check_page(
@@ -323,7 +353,10 @@ def wifi_preview(
 @app.get("/drive-selection")
 def drive_selection(request: Request):
     state = wizard_state(request)
-    system_info = detect_system_info(command_runner=logged_detection_runner(state))
+    system_info = detect_system_info(
+        command_runner=logged_detection_runner(state))
+    state["system_summary"] = system_summary(system_info)
+    request.session["wizard"] = state
     return templates.TemplateResponse(
         "drive_selection.html",
         context(
@@ -345,7 +378,9 @@ def save_drive_selection(
     mount_access: str = Form(DEFAULT_MOUNT_ACCESS),
 ):
     state = wizard_state(request)
-    system_info = detect_system_info(command_runner=logged_detection_runner(state))
+    system_info = detect_system_info(
+        command_runner=logged_detection_runner(state))
+    state["system_summary"] = system_summary(system_info)
     location = selected_location_from(location_id, system_info)
     selected_access = normalize_mount_access(mount_access)
     if location is None:
@@ -406,7 +441,8 @@ def save_share_name(request: Request, share_name: str = Form("")):
     if not clean_name:
         return templates.TemplateResponse(
             "share_name.html",
-            context(request, "Share Name", error="Enter a name for the Windows share."),
+            context(request, "Share Name",
+                    error="Enter a name for the Windows share."),
             status_code=400,
         )
 
@@ -483,11 +519,22 @@ def confirm_review(request: Request):
 
 @app.get("/apply")
 def apply_setup(request: Request):
-    if not wizard_state(request).get("reviewed"):
+    state = wizard_state(request)
+    if not state.get("reviewed"):
         return redirect("/review")
+    job = reconcile_apply_job_state(state)
+    request.session["wizard"] = state
+    if job and job.get("status") == STATUS_SUCCEEDED:
+        return redirect("/done")
+    error = (
+        "Setup stopped before finishing. Review the failed step below."
+        if state.get("apply_status") == STATUS_FAILED
+        else None
+    )
     return templates.TemplateResponse(
         "apply.html",
-        context(request, "Apply", results=wizard_state(request).get("apply_results", []), error=None),
+        context(request, "Apply", results=state.get(
+            "apply_results", []), error=error),
     )
 
 
@@ -504,13 +551,15 @@ def run_apply(
     if not add_drive and not samba_password:
         return templates.TemplateResponse(
             "apply.html",
-            context(request, "Apply", results=state.get("apply_results", []), error="Enter the Windows share password."),
+            context(request, "Apply", results=state.get(
+                "apply_results", []), error="Enter the Windows share password."),
             status_code=400,
         )
     if not add_drive and samba_password != confirm_samba_password:
         return templates.TemplateResponse(
             "apply.html",
-            context(request, "Apply", results=state.get("apply_results", []), error="The passwords do not match."),
+            context(request, "Apply", results=state.get(
+                "apply_results", []), error="The passwords do not match."),
             status_code=400,
         )
 
@@ -520,24 +569,125 @@ def run_apply(
     if not state.get("share_name") or not state.get("username"):
         return redirect("/review")
 
-    results = apply_share_setup(
-        location=location,
-        share_name=state["share_name"],
-        username=state["username"],
-        password=samba_password if not add_drive else None,
-        create_user=not add_drive,
-        command_runner=logged_command_runner(state, "Apply"),
-    )
-    state["selected_location"] = location
-    state["apply_results"] = results
-    state["applied"] = all(result["status"] == "passed" for result in results)
+    current_job = get_apply_job(state.get("apply_job_id"))
+    if current_job and current_job.get("status") in RUNNING_JOB_STATUSES:
+        return redirect("/apply/progress")
+
+    command_log_id_from_state(state)
+    job_state = dict(state)
+    job_location = dict(location)
+    share_name = state["share_name"]
+    username = state["username"]
+    password = samba_password if not add_drive else None
+    create_user = not add_drive
+
+    def apply_runner():
+        results = apply_share_setup(
+            location=job_location,
+            share_name=share_name,
+            username=username,
+            password=password,
+            create_user=create_user,
+            command_runner=logged_command_runner(job_state, "Apply"),
+        )
+        return results, job_location
+
+    job = start_apply_job(apply_runner)
+    state["apply_job_id"] = job.id
+    state["apply_status"] = STATUS_RUNNING
+    state["apply_results"] = []
+    state["applied"] = False
     request.session["wizard"] = state
 
-    if state["applied"]:
+    return redirect("/apply/progress")
+
+
+@app.get("/apply/progress")
+def apply_progress(request: Request):
+    state = wizard_state(request)
+    if not state.get("reviewed"):
+        return redirect("/review")
+    job = reconcile_apply_job_state(
+        state) or get_apply_job(state.get("apply_job_id"))
+    request.session["wizard"] = state
+    if job and job.get("status") == STATUS_SUCCEEDED:
         return redirect("/done")
+    if job and job.get("status") == STATUS_FAILED:
+        return redirect("/apply")
+    latest = latest_apply_log_entry(state)
+    return templates.TemplateResponse(
+        "apply_progress.html",
+        context(
+            request,
+            "Apply",
+            job=job,
+            latest_entry=latest,
+            error=None,
+            system=cached_system_summary(state),
+        ),
+    )
+
+
+@app.get("/apply/status")
+def apply_status(request: Request):
+    state = wizard_state(request)
+    job = reconcile_apply_job_state(
+        state) or get_apply_job(state.get("apply_job_id"))
+    latest = latest_apply_log_entry(state)
+    if job is None:
+        return JSONResponse(
+            {
+                "status": "lost",
+                "message": "Apply status was lost. The service may have restarted.",
+                "latest_entry": latest,
+            }
+        )
+
+    if job["status"] in {STATUS_SUCCEEDED, STATUS_FAILED}:
+        request.session["wizard"] = state
+
+    return JSONResponse(
+        {
+            "status": job["status"],
+            "results": job.get("results") or [],
+            "error": job.get("error"),
+            "latest_entry": latest,
+            "updated_at": job.get("updated_at"),
+            "redirect": "/done" if job["status"] == STATUS_SUCCEEDED else None,
+            "failure_url": "/apply" if job["status"] == STATUS_FAILED else None,
+        }
+    )
+
+
+def latest_apply_log_entry(state: dict[str, Any]) -> dict[str, Any] | None:
+    for entry in reversed(command_log_from_state(state)):
+        if entry.get("phase") == "Apply":
+            return entry
+    return None
+
+
+def reconcile_apply_job_state(state: dict[str, Any]) -> dict[str, Any] | None:
+    job = get_apply_job(state.get("apply_job_id"))
+    if not job or job.get("status") not in {STATUS_SUCCEEDED, STATUS_FAILED}:
+        return job
+
+    state["apply_status"] = job["status"]
+    state["apply_results"] = job.get("results") or []
+    if job.get("selected_location"):
+        state["selected_location"] = job["selected_location"]
+    state["applied"] = job["status"] == STATUS_SUCCEEDED
+    return job
+
+
+def render_apply_failure(request: Request, state: dict[str, Any]):
     return templates.TemplateResponse(
         "apply.html",
-        context(request, "Apply", results=results, error="Setup stopped before finishing. Review the failed step below."),
+        context(
+            request,
+            "Apply",
+            results=state.get("apply_results", []),
+            error="Oh no! Setup stopped before finishing. Review the failed step below.",
+        ),
         status_code=400,
     )
 
@@ -547,7 +697,8 @@ def clear_log(request: Request):
     state = wizard_state(request)
     clear_command_log(state)
     request.session["wizard"] = state
-    referer = request.headers.get("referer") if hasattr(request, "headers") else None
+    referer = request.headers.get("referer") if hasattr(
+        request, "headers") else None
     return redirect(referer or "/system-check")
 
 
@@ -572,12 +723,14 @@ def logs_data(request: Request):
 @app.get("/done")
 def done(request: Request):
     state = wizard_state(request)
+    reconcile_apply_job_state(state)
+    request.session["wizard"] = state
     if not state.get("applied"):
         return redirect("/apply")
     share_name = safe_name(state.get("share_name") or "Backups")
-    system = system_summary()
+    system = cached_system_summary(state)
     windows_path = f"\\\\{system['ip_address']}\\{share_name}"
     return templates.TemplateResponse(
         "done.html",
-        context(request, "Done", windows_path=windows_path),
+        context(request, "Done", windows_path=windows_path, system=system),
     )

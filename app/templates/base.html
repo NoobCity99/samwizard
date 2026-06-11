@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ step }} - Samba Wizard</title>
+    <title>{{ step }} - SamWizard</title>
     <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
   </head>
   <body>
@@ -22,7 +22,7 @@
             <span></span>
             <span></span>
           </div>
-          <p class="eyebrow">Samba Wizard</p>
+          <p class="eyebrow">SamWizard</p>
           <h1>{% block title %}{% endblock %}</h1>
           <p class="step-count">Step {{ step_index }} of {{ step_count }}</p>
           <ol class="steps" aria-label="Wizard progress">

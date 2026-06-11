@@ -7,6 +7,7 @@ ENV_DIR="${SAMWIZARD_ENV_DIR:-/etc/samwizard}"
 ENV_FILE="${SAMWIZARD_ENV_FILE:-${ENV_DIR}/samwizard.env}"
 SERVICE_FILE="/etc/systemd/system/samwizard.service"
 APP_URL="${SAMWIZARD_APP_URL:-https://github.com/NoobCity99/samwizard/releases/download/test3/samwizard-app.tar.gz}"
+
 HOST="${SAMWIZARD_HOST:-0.0.0.0}"
 PORT="${SAMWIZARD_PORT:-8080}"
 
@@ -15,7 +16,7 @@ say() {
 }
 
 fail() {
-  say "Samba Wizard installer stopped: $*" >&2
+  say "SamWizard installer stopped: $*" >&2
   exit 1
 }
 
@@ -39,10 +40,10 @@ load_os_release() {
 
 require_systemd() {
   if ! command -v systemctl >/dev/null 2>&1; then
-    fail "systemctl was not found. Milestone 6 expects Ubuntu Server with systemd."
+    fail "systemctl was not found. SamWizard expects Ubuntu Server with systemd."
   fi
   if [ ! -d /run/systemd/system ]; then
-    fail "systemd does not appear to be running. Use a real Ubuntu Server install for this milestone."
+    fail "systemd does not appear to be running. Use a real Ubuntu Server install."
   fi
 }
 
@@ -57,7 +58,7 @@ install_prerequisites() {
 }
 
 download_and_extract_app() {
-  say "Downloading Samba Wizard..."
+  say "Downloading SamWizard..."
   temp_dir="$(mktemp -d)"
   trap 'rm -rf "${temp_dir}"' EXIT
   bundle="${temp_dir}/samwizard-app.tar.gz"
@@ -97,7 +98,7 @@ write_service_file() {
   say "Creating systemd service..."
   cat > "${SERVICE_FILE}" <<EOF
 [Unit]
-Description=Samba Wizard
+Description=SamWizard
 After=network-online.target
 Wants=network-online.target
 
@@ -115,7 +116,7 @@ EOF
 }
 
 start_service() {
-  say "Starting Samba Wizard..."
+  say "Starting SamWizard..."
   systemctl daemon-reload
   systemctl enable samwizard
   if ! systemctl restart samwizard; then
@@ -152,7 +153,7 @@ main() {
   fi
 
   say ""
-  say "Samba Wizard is ready."
+  say "SamWizard is ready."
   if [ -n "${server_ip}" ]; then
     say "Open this from your Windows computer:"
     say "http://${server_ip}:${PORT}"

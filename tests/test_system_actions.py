@@ -1,13 +1,16 @@
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app.system_actions import (
     CommandResult,
     apply_share_setup,
     backup_file,
     prepare_drive_mount_settings,
+    run_command,
     sanitize_username,
     update_fstab_text,
     update_smb_conf_text,
@@ -104,6 +107,17 @@ class FakeRunner:
 
 
 class SystemActionTests(unittest.TestCase):
+    def test_run_command_converts_timeout_to_failed_result(self):
+        def timeout_run(*args, **kwargs):
+            raise subprocess.TimeoutExpired(cmd=["mount", "/mnt/backups"], timeout=30)
+
+        with patch("app.system_actions.subprocess.run", side_effect=timeout_run):
+            result = run_command(["mount", "/mnt/backups"])
+
+        self.assertEqual(result.returncode, 124)
+        self.assertTrue(result.timed_out)
+        self.assertIn("timed out after", result.stderr)
+
     def test_sanitize_username_uses_safe_lowercase_name(self):
         self.assertEqual(sanitize_username("Samba User!"), "samba-user")
         self.assertEqual(sanitize_username(""), "sambauser")

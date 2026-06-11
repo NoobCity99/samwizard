@@ -91,20 +91,39 @@ def default_summary(exit_code: int | None) -> str:
     return "Command reported a problem."
 
 
+def result_summary(result: CommandResult) -> str:
+    if getattr(result, "timed_out", False):
+        return "Command timed out."
+    return default_summary(result.returncode)
+
+
 def logged_command_runner(
     state: dict[str, Any],
     phase: str,
     *,
     base_runner: Callable[[list[str], str | None, dict[str, str] | None], CommandResult] = run_command,
     secret_commands: tuple[str, ...] = ("smbpasswd",),
+    log_start: bool | None = None,
 ) -> Callable[[list[str], str | None, dict[str, str] | None], CommandResult]:
     def runner(
         args: list[str],
         input_text: str | None = None,
         env: dict[str, str] | None = None,
     ) -> CommandResult:
-        result = base_runner(args, input_text, env)
         command_name = args[0] if args else ""
+        hide_stdin = input_text is not None or command_name in secret_commands
+        should_log_start = phase == "Apply" if log_start is None else log_start
+        if should_log_start:
+            add_log_entry(
+                state,
+                phase=phase,
+                command=args,
+                exit_code=None,
+                stdin_hidden=hide_stdin,
+                summary="Starting command...",
+            )
+
+        result = base_runner(args, input_text, env)
         add_log_entry(
             state,
             phase=phase,
@@ -112,8 +131,8 @@ def logged_command_runner(
             exit_code=result.returncode,
             stdout=result.stdout,
             stderr=result.stderr,
-            stdin_hidden=input_text is not None or command_name in secret_commands,
-            summary=default_summary(result.returncode),
+            stdin_hidden=hide_stdin,
+            summary=result_summary(result),
         )
         return result
 

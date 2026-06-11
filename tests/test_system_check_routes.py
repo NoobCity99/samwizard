@@ -1,4 +1,5 @@
 import json
+import time
 import unittest
 from importlib.util import find_spec
 from unittest.mock import patch
@@ -8,8 +9,11 @@ if find_spec("fastapi") is None:
 
 from app.command_log import add_log_entry, command_log_from_state
 from app.main import (
+    apply_progress,
+    apply_status,
     apply_setup,
     clear_log,
+    done,
     drive_selection,
     logs_data,
     logs_page,
@@ -147,6 +151,19 @@ def samba_info(*, users=None):
     return info
 
 
+def wait_for_apply_status(request, expected_status=None):
+    payload = {}
+    for _index in range(50):
+        response = apply_status(request)
+        payload = json.loads(response.body.decode())
+        if payload.get("status") not in {"pending", "running"}:
+            break
+        time.sleep(0.01)
+    if expected_status:
+        assert payload.get("status") == expected_status, payload
+    return payload
+
+
 class SystemCheckRouteTests(unittest.TestCase):
     def test_system_check_post_blocks_when_internet_is_missing(self):
         request = FakeRequest()
@@ -155,8 +172,11 @@ class SystemCheckRouteTests(unittest.TestCase):
             response = system_check_next(request)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Resolve the critical checks before continuing.", response.body.decode())
-        self.assertIn("OK, I connected ethernet", response.body.decode())
+        body = response.body.decode()
+        self.assertIn("Resolve the critical checks before continuing.", body)
+        self.assertIn("OK, I connected ethernet", body)
+        self.assertIn("Use a real Ubuntu Server system for full setup testing.", body)
+        self.assertNotIn("safe for this milestone", body)
 
     def test_system_check_post_continues_when_internet_is_connected(self):
         request = FakeRequest()
@@ -394,9 +414,16 @@ class SystemCheckRouteTests(unittest.TestCase):
                 samba_password="secret-password",
                 confirm_samba_password="secret-password",
             )
+            self.assertEqual(response.status_code, 303)
+            self.assertEqual(response.headers["location"], "/apply/progress")
+            wait_for_apply_status(request, "failed")
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("Administrator access needed", response.body.decode())
+        response = apply_setup(request)
+        self.assertEqual(response.status_code, 200)
+        body = response.body.decode()
+        self.assertIn("Administrator access needed", body)
+        self.assertNotIn("installer milestone", body)
+        self.assertNotIn("Real setup requires", body)
         self.assertNotIn("secret-password", response.body.decode())
         self.assertNotIn("secret-password", repr(request.session))
 
@@ -433,19 +460,28 @@ class SystemCheckRouteTests(unittest.TestCase):
                 samba_password="secret-password",
                 confirm_samba_password="secret-password",
             )
+            self.assertEqual(response.status_code, 303)
+            wait_for_apply_status(request, "failed")
 
+        response = apply_setup(request)
         body = response.body.decode()
         self.assertIn('href="/logs"', body)
         self.assertNotIn("Behind the scenes log", body)
         self.assertNotIn("apt-get update", body)
+        self.assertNotIn("installer milestone", body)
 
-    def test_apply_success_redirects_to_done(self):
+    def test_apply_post_starts_job_and_progress_redirects_to_done(self):
         request = FakeRequest(
             {
                 "reviewed": True,
                 "selected_location": selected_drive_state(),
                 "share_name": "Backups",
                 "username": "sambauser",
+                "system_summary": {
+                    "hostname": "fileserver",
+                    "ip_address": "192.168.1.50",
+                    "ubuntu_version": "Ubuntu 26.04 LTS",
+                },
             }
         )
         passed_result = [
@@ -464,10 +500,25 @@ class SystemCheckRouteTests(unittest.TestCase):
                 samba_password="secret-password",
                 confirm_samba_password="secret-password",
             )
+            self.assertEqual(response.status_code, 303)
+            self.assertEqual(response.headers["location"], "/apply/progress")
+            self.assertIn("apply_job_id", request.session["wizard"])
+            self.assertNotIn("secret-password", repr(request.session))
 
-        self.assertEqual(response.status_code, 303)
-        self.assertEqual(response.headers["location"], "/done")
-        self.assertNotIn("secret-password", repr(request.session))
+            progress = apply_progress(request)
+            self.assertEqual(progress.status_code, 200)
+            self.assertIn("Apply is running", progress.body.decode())
+
+            status = wait_for_apply_status(request, "succeeded")
+
+        self.assertEqual(status["redirect"], "/done")
+        done_response = done(request)
+        self.assertEqual(done_response.status_code, 200)
+        body = done_response.body.decode()
+        self.assertIn("\\\\192.168.1.50\\Backups", body)
+        self.assertIn('aria-label="Copy Windows path"', body)
+        self.assertIn("navigator.clipboard.writeText", body)
+        self.assertIn("SamWizard", body)
 
     def test_add_drive_apply_accepts_no_password(self):
         request = FakeRequest(
@@ -491,9 +542,10 @@ class SystemCheckRouteTests(unittest.TestCase):
 
         with patch("app.main.apply_share_setup", return_value=passed_result) as apply_mock:
             response = run_apply(request)
+            self.assertEqual(response.status_code, 303)
+            self.assertEqual(response.headers["location"], "/apply/progress")
+            wait_for_apply_status(request, "succeeded")
 
-        self.assertEqual(response.status_code, 303)
-        self.assertEqual(response.headers["location"], "/done")
         kwargs = apply_mock.call_args.kwargs
         self.assertIsNone(kwargs["password"])
         self.assertFalse(kwargs["create_user"])
@@ -514,6 +566,141 @@ class SystemCheckRouteTests(unittest.TestCase):
         body = response.body.decode()
         self.assertIn("Add this drive", body)
         self.assertNotIn("Windows share password", body)
+
+    def test_apply_status_reports_running_and_latest_command(self):
+        request = FakeRequest({"apply_job_id": "job-1"})
+        add_log_entry(
+            request.session["wizard"],
+            phase="Apply",
+            command=["mount", "/srv/samba/drives/Backup"],
+            exit_code=None,
+            summary="Starting command...",
+        )
+        running_job = {
+            "id": "job-1",
+            "status": "running",
+            "results": [],
+            "error": None,
+            "selected_location": {},
+            "updated_at": "2026-06-10T12:00:00+00:00",
+        }
+
+        with patch("app.main.get_apply_job", return_value=running_job):
+            response = apply_status(request)
+
+        payload = json.loads(response.body.decode())
+        self.assertEqual(payload["status"], "running")
+        self.assertIn("mount /srv/samba/drives/Backup", payload["latest_entry"]["command"])
+        self.assertEqual(payload["latest_entry"]["summary"], "Starting command...")
+
+    def test_done_uses_cached_system_summary_without_full_detection(self):
+        request = FakeRequest(
+            {
+                "applied": True,
+                "share_name": "Backups",
+                "username": "sambauser",
+                "system_summary": {
+                    "hostname": "fileserver",
+                    "ip_address": "192.168.1.50",
+                    "ubuntu_version": "Ubuntu 26.04 LTS",
+                },
+            }
+        )
+
+        with patch("app.main.detect_system_info", side_effect=AssertionError("should not run")):
+            response = done(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("\\\\192.168.1.50\\Backups", response.body.decode())
+
+    def test_done_reconciles_completed_apply_job_when_session_not_marked_applied(self):
+        request = FakeRequest(
+            {
+                "reviewed": True,
+                "apply_job_id": "job-1",
+                "applied": False,
+                "share_name": "Backups",
+                "username": "sambauser",
+                "system_summary": {
+                    "hostname": "fileserver",
+                    "ip_address": "192.168.1.50",
+                    "ubuntu_version": "Ubuntu 26.04 LTS",
+                },
+            }
+        )
+        completed_job = {
+            "id": "job-1",
+            "status": "succeeded",
+            "results": [
+                {
+                    "id": "restart_samba",
+                    "title": "Restart Windows file sharing",
+                    "status": "passed",
+                    "summary": "Windows file sharing restarted.",
+                    "details": [],
+                }
+            ],
+            "error": None,
+            "selected_location": selected_drive_state(),
+            "updated_at": "2026-06-10T12:00:00+00:00",
+        }
+
+        with patch("app.main.get_apply_job", return_value=completed_job):
+            response = done(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(request.session["wizard"]["applied"])
+        self.assertEqual(request.session["wizard"]["apply_status"], "succeeded")
+        self.assertIn("\\\\192.168.1.50\\Backups", response.body.decode())
+
+    def test_apply_page_redirects_to_done_when_job_finished_after_polling(self):
+        request = FakeRequest(
+            {
+                "reviewed": True,
+                "apply_job_id": "job-1",
+                "applied": False,
+                "selected_location": selected_drive_state(),
+                "share_name": "Backups",
+                "username": "sambauser",
+            }
+        )
+        completed_job = {
+            "id": "job-1",
+            "status": "succeeded",
+            "results": [],
+            "error": None,
+            "selected_location": selected_drive_state(),
+            "updated_at": "2026-06-10T12:00:00+00:00",
+        }
+
+        with patch("app.main.get_apply_job", return_value=completed_job):
+            response = apply_setup(request)
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/done")
+
+    def test_apply_exception_becomes_failed_status(self):
+        request = FakeRequest(
+            {
+                "reviewed": True,
+                "selected_location": selected_drive_state(),
+                "share_name": "Backups",
+                "username": "sambauser",
+            }
+        )
+
+        with patch("app.main.apply_share_setup", side_effect=RuntimeError("boom")):
+            response = run_apply(
+                request,
+                samba_password="secret-password",
+                confirm_samba_password="secret-password",
+            )
+            self.assertEqual(response.status_code, 303)
+            status = wait_for_apply_status(request, "failed")
+
+        self.assertEqual(status["failure_url"], "/apply")
+        self.assertIn("unexpected error", repr(status["results"]))
+        self.assertNotIn("secret-password", repr(request.session))
 
     def test_stale_server_folder_session_redirects_to_drive_selection(self):
         request = FakeRequest(
@@ -635,6 +822,9 @@ class SystemCheckRouteTests(unittest.TestCase):
 
         body = response.body.decode()
         self.assertIn("Behind the scenes log", body)
+        self.assertIn("Behind the scenes log - SamWizard", body)
+        self.assertIn('<p class="eyebrow">SamWizard</p>', body)
+        self.assertNotIn("Samba Wizard", body)
         self.assertIn("apt-get update", body)
         self.assertIn("/logs/data", body)
 

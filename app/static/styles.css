@@ -682,7 +682,6 @@ button:hover {
   white-space: pre-wrap;
 }
 
-.mock-log,
 .system-detail-list {
   display: grid;
   gap: 8px;
@@ -691,7 +690,6 @@ button:hover {
   list-style: none;
 }
 
-.mock-log li,
 .system-detail-list li {
   position: relative;
   padding-left: 22px;
@@ -700,7 +698,6 @@ button:hover {
   font-size: 0.82rem;
 }
 
-.mock-log li::before,
 .system-detail-list li::before {
   position: absolute;
   left: 0;
@@ -824,6 +821,73 @@ button:hover {
 .result-failed {
   border-color: rgba(255, 159, 67, 0.56);
   box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.progress-panel {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), transparent),
+    rgba(8, 17, 31, 0.84);
+}
+
+.progress-panel h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 1rem;
+}
+
+.progress-panel p {
+  margin: 7px 0 0;
+  color: var(--muted);
+}
+
+.spinner {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border: 3px solid rgba(55, 168, 255, 0.22);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 900ms linear infinite;
+}
+
+.indeterminate-progress {
+  position: relative;
+  height: 8px;
+  margin-top: 18px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(55, 168, 255, 0.12);
+}
+
+.indeterminate-progress span {
+  position: absolute;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  animation: progress-slide 1.4s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes progress-slide {
+  from {
+    left: -42%;
+  }
+  to {
+    left: 100%;
+  }
 }
 
 .command-log {
@@ -1008,6 +1072,41 @@ button:hover {
   font-weight: 800;
 }
 
+.copy-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.copy-row code {
+  flex: 1 1 auto;
+}
+
+.copy-button {
+  flex: 0 0 auto;
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+}
+
+.copy-button svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.copy-feedback {
+  min-height: 1.2em;
+  color: var(--success);
+  font-family: var(--mono);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
 .instructions {
   margin: 23px 0 0;
   padding-left: 22px;
@@ -1152,10 +1251,6 @@ button:hover {
 .compact-checklist .command-preview pre {
   padding: 9px 10px;
   font-size: 0.78rem;
-}
-
-.compact-checklist .mock-log {
-  margin-top: 10px;
 }
 
 @media (max-width: 760px) {

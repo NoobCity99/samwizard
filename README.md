@@ -1,17 +1,16 @@
-# Samba Wizard
+# SamWizard
 
-Samba Wizard is a local FastAPI setup wizard for creating one private Samba
-share from Ubuntu Server.
+SamWizard is a local FastAPI setup wizard for creating one private Samba share
+from Ubuntu Server.
 
 The app uses FastAPI, Jinja2 templates, and plain CSS. The System Check page can
 read Linux system details such as hostname, local IP addresses, `/etc/os-release`,
 Samba command/package evidence, `lsblk` JSON, `findmnt` JSON, and `/proc/mounts`
 as a fallback.
 
-The System Check page is read-only. The Apply step for Milestones 3-5 can make
-real system changes when the app is started with sudo: install Samba, mount a
-selected external or additional drive by UUID, update Samba config, and restart
-Samba.
+The System Check page is read-only. The Apply step can make real system changes
+when the app is started with sudo: install Samba, mount a selected external or
+additional drive by UUID, update Samba config, and restart Samba.
 
 ## Run locally for read-only screens
 
@@ -53,7 +52,7 @@ responses from the current browser session. Passwords and secret input are
 hidden as `********`, and the log can be cleared from the UI. Logs are
 session-only and disappear when the app process restarts.
 
-## Build Milestone 6 release assets
+## Build release assets
 
 From WSL or Linux:
 
@@ -84,10 +83,10 @@ sudo SAMWIZARD_APP_URL="https://example.test/samwizard-app.tar.gz" bash samwizar
 ## Install on Ubuntu Server
 
 Use a real Ubuntu Server system with systemd. WSL is useful for unit tests, but
-it is not the target for the Milestone 6 service installer.
+it is not the target for the service installer.
 
 ```bash
-curl -fsSL https://github.com/NoobCity99/samwizard/releases/download/test2/samwizard.sh -o samwizard.sh
+curl -fsSL https://github.com/NoobCity99/samwizard/releases/download/test3/samwizard.sh -o samwizard.sh
 sudo bash samwizard.sh
 ```
 
@@ -95,7 +94,7 @@ The installer will:
 
 ```text
 Install required Ubuntu packages
-Install Samba Wizard into /opt/samwizard
+Install SamWizard into /opt/samwizard
 Create /opt/samwizard/venv
 Write /etc/samwizard/samwizard.env
 Create and start samwizard.service
@@ -122,7 +121,7 @@ Use a real Ubuntu Server machine or VM with systemd. Attach one known-safe
 existing drive or partition that already has a filesystem and UUID. The wizard
 does not format, erase, or repartition drives.
 
-1. Install Samba Wizard with the release `samwizard.sh`.
+1. Install SamWizard with the release `samwizard.sh`.
 
 2. Open the printed URL from the Windows laptop. Also open the live log page:
 
@@ -176,7 +175,7 @@ From WSL, prefer the repo-local WSL virtual environment:
 if [ -x .venv-wsl/bin/python ]; then .venv-wsl/bin/python -m unittest discover -s tests; else python3 -m unittest discover -s tests; fi
 ```
 
-## Test Milestone 2 in WSL2 Ubuntu
+## Test in WSL2 Ubuntu
 
 Use these steps on this Windows laptop when you want to see the real Linux
 detection results.
@@ -245,7 +244,7 @@ lsblk --json
 findmnt --json
 ```
 
-For real Milestones 3-5.1 testing, stop the read-only server and restart with
-sudo using the command above. Test Wi-Fi changes only on a server/network where
-applying Netplan is acceptable. Test drive sharing only with a known safe
-existing partition. The wizard does not format drives.
+For real setup testing, stop the read-only server and restart with sudo using
+the command above. Test Wi-Fi changes only on a server/network where applying
+Netplan is acceptable. Test drive sharing only with a known safe existing
+partition. The wizard does not format drives.

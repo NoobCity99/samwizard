@@ -9,18 +9,29 @@ Consider the roadmap as a historical document with reference material of how we 
 ## BUGS needing attention
 Move resolved BUGS to the '## Resolved Bugs' section below as you resolve them.
 
-
 ## CHANGES to APP
 Move completed changes to the '## Completed Changes' section below after changes have been coded.
 
+### CHANGE 3: ufw enabling for tailscale.
 
-
-### CHANGE 3: TBD
+ Future updates to app will include installing TAILSCALE to allow users to access their samba share drives remotely. I understand it's advisable to have ufw enabled and have samba and/or tailscale authorized to pass.  Devise a plan to include a new step in the process to activate ufw with the user.  If having tailscale installed first is a safer order of operations.... plan the best implimentation with these factors in mind.
 
 # RESOLVED ITEMS
 Here will be the historical record of changes and fixes, they'll include the original issue AS WELL AS a summary of what CODEX did to resolve it.
 
 ## Resolved Bugs
+
+### BUG 4: Stale language about milestones
+Original issue:
+    - Some pages still had old milestone/mock-era warning language, including sudo-until-launcher text.
+    - The app is now in real-world testing, so stale training-wheel language needed to be removed.
+
+Resolution:
+    - Removed the obsolete Apply page notice about needing sudo until an installer milestone.
+    - Reworded System Check to explain that Windows, WSL, or non-Ubuntu may report limited details, and that real setup testing should use Ubuntu Server.
+    - Updated README milestone-era language to current release and real setup wording.
+    - Removed stale mock-log CSS naming and refreshed the development session secret fallback string.
+    - Kept root-required backend failure messages because they still protect real system changes when the app is launched without sudo.
 
 ### BUG 1: DRIVE MOUNTING Error
 Original issue:
@@ -53,8 +64,25 @@ Resolution:
     - Apply verifies the final mount options with findmnt and fails if read/write was requested but Linux mounted the drive read-only.
     - Read/write drive setup runs a private-user write/delete probe before Samba is configured.
     - Read-only drive setup skips ownership, chmod, folder creation, and write probes, and writes Samba as read only.
-    - install.sh now installs NTFS and exFAT support, with HFS tools as best-effort optional packages.
+    - samwizard.sh installs NTFS and exFAT support, with HFS tools as best-effort optional packages.
     - Unit tests cover mount option generation, route storage/display, read-only Samba config, read-only skip behavior, read-only mount failure, and write-probe failure.
+
+### BUG 3: Mount Successful, but Browser Hangs
+Original issue:
+    1. Samba setup appeared to work on the real server.
+    2. The selected drive mounted successfully.
+    3. Windows could access the share via IP and Samba username/password.
+    4. The browser hung after clicking Apply and did not visibly reach the confirmation page.
+    5. The extracted backend log showed Apply reached `systemctl restart smbd` and that command completed.
+
+Resolution:
+    - Apply now starts a background job and immediately redirects the browser to a live progress page.
+    - The progress page shows an indeterminate spinner/progress bar, latest Apply command, stale-command waiting message, and full-log link.
+    - Apply subprocesses now have command-specific timeouts and return friendly timeout failures instead of hanging indefinitely.
+    - Apply command logging now records both "Starting command..." and the final completion/failure/timeout result.
+    - Successful Apply completion is reconciled through `/apply/status`, then redirects to `/done` without rerunning full system detection.
+    - Failed Apply jobs send the browser back to Apply with the failed step displayed.
+    - Unit tests cover progress redirects, status polling, timeout conversion, unexpected Apply errors, password masking, and Done rendering from cached system details.
 
 
 
@@ -96,3 +124,16 @@ Resolution:
     - README release and install instructions now use `samwizard.sh` as the branded release asset and command.
     - Installer tests now validate `samwizard.sh` directly.
     - No install.sh compatibility wrapper is kept; the next release should upload samwizard.sh.
+
+### CHANGE 4: Small Changes
+Original change:
+    - Add a clickable copy icon on the Done page Windows Path card.
+    - Change the top-left app text from "SAMBA WIZARD" to "SamWizard".
+    - Add an assets folder for future icons and images.
+
+Resolution:
+    - Done now includes an accessible copy button for the Windows path with clipboard support and a fallback copy path.
+    - Visible app branding, browser titles, and the log page now use "SamWizard".
+    - Added `app/static/assets/` as the served asset folder for future icons/images.
+    - The current three colored dots remain until the final logo is ready.
+    - Logo guidance: use transparent SVG when possible; transparent PNG or WebP is also fine. Provide a square source at 128x128 or larger. The header display target should be roughly 28-36 px tall.
