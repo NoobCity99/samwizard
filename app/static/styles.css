@@ -51,13 +51,11 @@ body::before {
   z-index: -1;
   pointer-events: none;
   content: "";
-  background: repeating-linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.035) 0,
-    rgba(255, 255, 255, 0.035) 1px,
-    transparent 1px,
-    transparent 5px
-  );
+  background: repeating-linear-gradient(to bottom,
+      rgba(255, 255, 255, 0.035) 0,
+      rgba(255, 255, 255, 0.035) 1px,
+      transparent 1px,
+      transparent 5px);
   opacity: 0.26;
 }
 
@@ -126,8 +124,8 @@ a {
   top: 22px;
   right: 22px;
   display: inline-flex;
-  width: 42px;
-  height: 42px;
+  width: 60px;
+  height: 60px;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--line);
@@ -153,33 +151,12 @@ a {
   stroke-width: 1.8;
 }
 
-.rack-lights {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 18px;
-}
-
-.rack-lights span {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: var(--dim);
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08);
-}
-
-.rack-lights span:nth-child(1) {
-  background: var(--success);
-  box-shadow: 0 0 14px rgba(115, 226, 167, 0.64);
-}
-
-.rack-lights span:nth-child(2) {
-  background: var(--primary);
-  box-shadow: 0 0 14px var(--primary-glow);
-}
-
-.rack-lights span:nth-child(3) {
-  background: var(--accent);
-  box-shadow: 0 0 14px rgba(255, 159, 67, 0.54);
+.app-logo {
+  display: block;
+  width: 100px;
+  height: 100px;
+  margin-bottom: 5px;
+  object-fit: contain;
 }
 
 .eyebrow,
@@ -885,6 +862,7 @@ button:hover {
   from {
     left: -42%;
   }
+
   to {
     left: 100%;
   }
@@ -1113,13 +1091,217 @@ button:hover {
   color: var(--muted);
 }
 
-.instructions li + li {
+.instructions li+li {
   margin-top: 8px;
 }
 
 .instructions strong {
   color: var(--text);
   font-family: var(--mono);
+}
+
+.address-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.actions form {
+  margin: 0;
+}
+
+.tailscale-flow-visual {
+  margin-top: 22px;
+}
+
+.landing-shell {
+  width: min(1180px, 100%);
+}
+
+.landing-panel {
+  display: grid;
+}
+
+.landing-header,
+.landing-content {
+  position: relative;
+  z-index: 1;
+  padding: 30px;
+}
+
+.landing-header {
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(90deg, rgba(8, 17, 31, 0.94), rgba(11, 22, 39, 0.76)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 18px);
+}
+
+.landing-logo {
+  margin-bottom: 7px;
+}
+
+.landing-lead {
+  margin-bottom: 0;
+}
+
+.landing-content {
+  display: grid;
+  gap: 34px;
+}
+
+.landing-banner,
+.landing-feature-media,
+.landing-asset-placeholder {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(55, 168, 255, 0.12), rgba(255, 159, 67, 0.08)),
+    rgba(6, 13, 24, 0.72);
+  object-fit: cover;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.035);
+}
+
+.landing-banner {
+  aspect-ratio: 1920 / 631;
+  max-height: 360px;
+}
+
+.landing-feature-media {
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+}
+
+.landing-asset-placeholder {
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.landing-asset-placeholder span,
+.landing-asset-placeholder strong {
+  display: block;
+  font-family: var(--mono);
+}
+
+.landing-asset-placeholder span {
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.landing-asset-placeholder strong {
+  margin-top: 6px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.landing-section {
+  display: grid;
+  gap: 22px;
+}
+
+.landing-section h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  line-height: 1.15;
+  text-align: center;
+  text-transform: uppercase;
+  text-shadow: 0 0 18px rgba(55, 168, 255, 0.22);
+}
+
+.landing-feature-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(260px, 1.1fr);
+  gap: 18px 24px;
+  align-items: stretch;
+}
+
+.landing-copy-panel,
+.landing-path-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.055), transparent),
+    var(--panel-soft);
+  box-shadow: inset 3px 0 0 rgba(55, 168, 255, 0.34);
+}
+
+.landing-copy-panel {
+  display: grid;
+  align-content: center;
+}
+
+.landing-copy-panel strong {
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+.landing-copy-panel p,
+.landing-path-card p {
+  margin: 7px 0 0;
+  color: var(--muted);
+}
+
+.landing-paths {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.landing-path-card {
+  display: grid;
+  gap: 16px;
+  align-content: start;
+  text-align: center;
+}
+
+.landing-path-button {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 159, 67, 0.86);
+  border-radius: 8px;
+  padding: 11px 17px;
+  background:
+    linear-gradient(180deg, rgba(255, 187, 109, 0.22), transparent),
+    var(--accent);
+  color: #150b03;
+  font: inherit;
+  font-family: var(--mono);
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 0 24px rgba(255, 159, 67, 0.22);
+}
+
+.landing-path-button:hover {
+  background:
+    linear-gradient(180deg, rgba(255, 231, 198, 0.26), transparent),
+    #ffb15f;
+}
+
+.landing-path-button:disabled,
+.landing-path-card-disabled .landing-path-button {
+  border-color: rgba(122, 164, 218, 0.22);
+  background: rgba(6, 13, 24, 0.72);
+  color: var(--dim);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.landing-path-card-disabled {
+  opacity: 0.72;
 }
 
 .sr-only {
@@ -1143,7 +1325,9 @@ button:hover {
   }
 
   .wizard-header,
-  .content {
+  .content,
+  .landing-header,
+  .landing-content {
     padding: 20px;
   }
 
@@ -1156,6 +1340,19 @@ button:hover {
   }
 
   .summary {
+    grid-template-columns: 1fr;
+  }
+
+  .address-compare {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-content {
+    gap: 26px;
+  }
+
+  .landing-feature-grid,
+  .landing-paths {
     grid-template-columns: 1fr;
   }
 

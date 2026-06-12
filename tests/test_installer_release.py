@@ -4,10 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from build_release import build_bundle
+from build_release import DEFAULT_VERSION, build_bundle
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+LATEST_BUNDLE_URL = "https://github.com/NoobCity99/samwizard/releases/latest/download/samwizard-app.tar.gz"
 
 
 class InstallerReleaseTests(unittest.TestCase):
@@ -29,23 +30,39 @@ class InstallerReleaseTests(unittest.TestCase):
         self.assertIn("/etc/systemd/system/samwizard.service", content)
         self.assertIn("SAMWIZARD_SECRET_KEY", content)
         self.assertIn("samwizard-app.tar.gz", content)
+        self.assertIn(LATEST_BUNDLE_URL, content)
+        self.assertNotIn("releases/download/test3/samwizard-app.tar.gz", content)
         self.assertIn("systemctl enable samwizard", content)
-        self.assertIn("ufw", content)
+        package_line = next(
+            line.strip()
+            for line in content.splitlines()
+            if line.strip().startswith("apt-get install -y curl")
+        )
+        self.assertIn(" ufw ", f" {package_line} ")
         self.assertIn("ntfs-3g", content)
         self.assertIn("exfatprogs", content)
         self.assertIn("hfsplus", content)
         self.assertIn("hfsprogs", content)
 
+    def test_release_version_defaults_to_next_phase_version(self):
+        self.assertEqual(DEFAULT_VERSION, "0.7.0")
+        self.assertEqual((REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip(), "0.7.0")
+
     def test_release_bundle_contains_app_files_and_excludes_local_artifacts(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "samwizard-app.tar.gz"
-            build_bundle(output=output, version="0.6.0")
+            build_bundle(output=output, version="0.7.0")
 
             with tarfile.open(output, "r:gz") as archive:
                 names = set(archive.getnames())
 
         self.assertIn("app/main.py", names)
+        self.assertIn("app/tailscale_manager.py", names)
+        self.assertIn("app/firewall_manager.py", names)
         self.assertIn("app/templates/base.html", names)
+        self.assertIn("app/templates/landing.html", names)
+        self.assertIn("app/templates/tailscale_done.html", names)
+        self.assertIn("app/templates/tailscale_firewall.html", names)
         self.assertIn("requirements.txt", names)
         self.assertIn("README.md", names)
         self.assertIn("VERSION", names)

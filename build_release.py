@@ -5,7 +5,7 @@ import tarfile
 from pathlib import Path
 
 
-DEFAULT_VERSION = "0.6.0"
+DEFAULT_VERSION = "0.7.0"
 DEFAULT_OUTPUT = Path("dist/samwizard-app.tar.gz")
 INCLUDE_PATHS = [
     Path("app"),

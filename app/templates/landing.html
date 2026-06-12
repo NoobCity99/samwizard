@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SamWizard</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/styles.css') }}">
+</head>
+
+<body>
+  {#
+  Landing page assets live in app/static/assets/landing/.
+  Use landing_banner.png for the wide banner, landing_samba_intro.png and
+  landing_server_intro.png for the 16:9 image slots. Sizing and spacing are
+  controlled by the .landing-* rules in app/static/styles.css.
+  #}
+  {% macro asset_slot(asset, class_name) -%}
+  {% if asset.exists %}
+  <img class="{{ class_name }}" src="{{ url_for('static', path=asset.src) }}" alt="">
+  {% else %}
+  <div class="{{ class_name }} landing-asset-placeholder" role="img"
+    aria-label="Missing image asset {{ asset.filename }}">
+    <span>{{ asset.ratio }} image</span>
+    <strong>{{ asset.filename }}</strong>
+  </div>
+  {% endif %}
+  {%- endmacro %}
+
+  <main class="shell landing-shell">
+    <section class="wizard landing-panel" aria-labelledby="landing-title">
+      <header class="landing-header">
+        <img class="app-logo landing-logo" src="{{ url_for('static', path='/assets/samwizard_logo.png') }}" width="100"
+          height="100" alt="" aria-hidden="true">
+        <b class="eyebrow">SamWizard</b>
+        <h1 id="landing-title">Build your beginner-friendly Ubuntu server</h1>
+        <p class="lead landing-lead">
+          <strong>CONGRATS!!</strong> You just set up a Linux Server on your own! It can do a lot of powerful things.
+          <u>BUT TODAY</u>, we're going to set up a Share Drive on the server for you to be able access remotely from a
+          Windows PC.
+          <u>IDEALLY</u> you have an external hard drive or SSD you've connected to your server via USB, this can be a
+          new one or one you've used for a while and don't want to have to carry around anymore.
+        </p>
+      </header>
+
+      <div class="landing-content">
+        {{ asset_slot(assets.banner, "landing-banner") }}
+
+        <section class="landing-section" aria-labelledby="about-samwizard">
+          <h2 id="about-samwizard">What is SamWizard?</h2>
+          <div class="landing-feature-grid">
+            {{ asset_slot(assets.samba_intro, "landing-feature-media") }}
+            <div class="landing-copy-panel">
+              <strong>Placeholder explainer headline</strong>
+              <p>
+                Placeholder text for the first SamWizard explainer block. This area can describe the main problem the
+                app solves for new Ubuntu Server users.
+              </p>
+            </div>
+            <div class="landing-copy-panel">
+              <strong>Placeholder server basics headline</strong>
+              <p>
+                Placeholder text for the second explainer block. This area can explain that SamWizard guides users
+                through setup without requiring Linux command-line knowledge.
+              </p>
+            </div>
+            {{ asset_slot(assets.server_intro, "landing-feature-media") }}
+          </div>
+        </section>
+
+        <section class="landing-section" aria-labelledby="choose-path">
+          <h2 id="choose-path">Your Path to Wizardry</h2>
+          <div class="landing-paths">
+            <article class="landing-path-card">
+              <a class="landing-path-button" href="/samba">STEP 1: Install SAMBA</a>
+              <p>
+                Placeholder copy for setting up a private Windows-accessible file share on your local network.
+              </p>
+            </article>
+            <article class="landing-path-card">
+              <a class="landing-path-button" href="/tailscale">STEP 2: Install TAILSCALE</a>
+              <p>
+                Placeholder copy for adding secure private remote access to an existing Samba share.
+              </p>
+            </article>
+            <article class="landing-path-card landing-path-card-disabled">
+              <button class="landing-path-button" type="button" disabled>CLI Tutorial</button>
+              <p>
+                Placeholder copy for a future beginner-friendly Ubuntu Server and command-line learning path.
+              </p>
+            </article>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+
+</html>

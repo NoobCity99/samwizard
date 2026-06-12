@@ -15,6 +15,7 @@ from app.main import (
     clear_log,
     done,
     drive_selection,
+    landing,
     logs_data,
     logs_page,
     review,
@@ -23,9 +24,16 @@ from app.main import (
     save_drive_selection,
     save_share_name,
     save_user_setup,
+    start,
     system_check_next,
+    tailscale_authorize_check,
+    tailscale_choose,
+    tailscale_done,
+    tailscale_run_install,
+    tailscale_select_share,
     user_setup,
     wifi_preview,
+    welcome,
 )
 
 
@@ -151,6 +159,25 @@ def samba_info(*, users=None):
     return info
 
 
+def samba_info_with_shares(shares):
+    info = samba_info(users=[{"name": "sambauser"}])
+    info["samba"]["shares"] = shares
+    return info
+
+
+def selected_tailscale_share(**extra):
+    share = {
+        "id": "session",
+        "name": "Backups",
+        "path": "/srv/samba/drives/Backups",
+        "local_ip": "192.168.1.50",
+        "local_path": "\\\\192.168.1.50\\Backups",
+        "source": "Current SamWizard session",
+    }
+    share.update(extra)
+    return share
+
+
 def wait_for_apply_status(request, expected_status=None):
     payload = {}
     for _index in range(50):
@@ -164,7 +191,174 @@ def wait_for_apply_status(request, expected_status=None):
     return payload
 
 
+def normalized_body(response):
+    return " ".join(response.body.decode().split())
+
+
 class SystemCheckRouteTests(unittest.TestCase):
+    def test_root_renders_landing_without_wizard_progress(self):
+        response = landing(FakeRequest())
+        body = normalized_body(response)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Choose a path", body)
+        self.assertIn("SAMBA", body)
+        self.assertIn("SMB + Tailscale", body)
+        self.assertIn("CLI Tutorial", body)
+        self.assertNotIn("Wizard progress", body)
+        self.assertNotIn("Step 1 of", body)
+
+    def test_landing_samba_and_tailscale_paths_are_live(self):
+        response = landing(FakeRequest())
+        body = normalized_body(response)
+
+        self.assertIn('href="/samba"', body)
+        self.assertIn('href="/tailscale"', body)
+        self.assertIn("disabled>CLI Tutorial", body)
+        self.assertNotIn('href="/cli-tutorial"', body)
+
+    def test_samba_route_renders_existing_welcome_step(self):
+        response = welcome(FakeRequest())
+        body = normalized_body(response)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Set up a private Windows file share", body)
+        self.assertIn("Wizard progress", body)
+        self.assertIn("Step 1 of", body)
+
+    def test_start_still_redirects_to_system_check(self):
+        request = FakeRequest({"share_name": "OldShare"})
+
+        response = start(request)
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/system-check")
+        self.assertEqual(request.session["wizard"], {})
+
+    def test_tailscale_blocks_when_no_samba_share_exists(self):
+        request = FakeRequest()
+
+        with patch("app.main.detect_system_info", return_value=system_info(True)):
+            response = tailscale_choose(request)
+
+        body = normalized_body(response)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("needs a Samba share first", body)
+        self.assertIn('href="/samba"', body)
+
+    def test_tailscale_multiple_detected_shares_show_chooser(self):
+        request = FakeRequest()
+        info = samba_info_with_shares(
+            [
+                {"name": "Backups", "path": "/srv/samba/drives/Backups"},
+                {"name": "Media", "path": "/srv/samba/drives/Media"},
+            ]
+        )
+
+        with patch("app.main.detect_system_info", return_value=info):
+            response = tailscale_choose(request)
+
+        body = normalized_body(response)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Backups", body)
+        self.assertIn("Media", body)
+        self.assertIn('name="share_id"', body)
+
+    def test_tailscale_share_selection_redirects_to_explanation(self):
+        request = FakeRequest()
+        info = samba_info_with_shares(
+            [
+                {"name": "Backups", "path": "/srv/samba/drives/Backups"},
+                {"name": "Media", "path": "/srv/samba/drives/Media"},
+            ]
+        )
+
+        with patch("app.main.detect_system_info", return_value=info):
+            response = tailscale_select_share(request, share_id="detected-1")
+
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(response.headers["location"], "/tailscale/what-changes")
+        self.assertEqual(request.session["wizard"]["tailscale"]["share"]["name"], "Media")
+
+    def test_tailscale_done_shows_local_and_tailscale_paths(self):
+        request = FakeRequest(
+            {
+                "tailscale": {
+                    "share": selected_tailscale_share(),
+                    "tailscale_ip": "100.64.0.10",
+                }
+            }
+        )
+
+        response = tailscale_done(request)
+        body = response.body.decode()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("\\\\192.168.1.50\\Backups", body)
+        self.assertIn("\\\\100.64.0.10\\Backups", body)
+        self.assertIn("The folder did not move", body)
+
+    def test_tailscale_install_failure_shows_friendly_error(self):
+        request = FakeRequest({"tailscale": {"share": selected_tailscale_share()}})
+        failed_result = [
+            {
+                "id": "tailscale_install",
+                "title": "Install private remote access support",
+                "status": "failed",
+                "summary": "Tailscale could not be installed. Check internet access and package manager errors.",
+                "details": ["apt-get exited 1"],
+            }
+        ]
+
+        with patch("app.main.install_tailscale", return_value=failed_result):
+            with patch(
+                "app.main.detect_tailscale",
+                return_value={
+                    "installed": False,
+                    "service_status": "not_installed",
+                    "backend_state": "Unknown",
+                    "logged_in": False,
+                    "connected": False,
+                    "ipv4": None,
+                    "message": "Tailscale is not installed yet.",
+                },
+            ):
+                response = tailscale_run_install(request)
+
+        body = normalized_body(response)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Check internet access", body)
+        self.assertNotIn("Traceback", body)
+
+    def test_tailscale_authorize_check_failure_is_friendly(self):
+        request = FakeRequest(
+            {
+                "tailscale": {
+                    "share": selected_tailscale_share(),
+                    "login_url": "https://login.tailscale.com/a/abc123",
+                }
+            }
+        )
+
+        with patch(
+            "app.main.detect_tailscale",
+            return_value={
+                "installed": True,
+                "service_status": "active",
+                "backend_state": "NeedsLogin",
+                "logged_in": False,
+                "connected": False,
+                "ipv4": None,
+                "message": "Tailscale is installed and running, but this server still needs approval.",
+            },
+        ):
+            response = tailscale_authorize_check(request)
+
+        body = normalized_body(response)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("does not show this server as connected yet", body)
+        self.assertNotIn("Traceback", body)
+
     def test_system_check_post_blocks_when_internet_is_missing(self):
         request = FakeRequest()
 
@@ -172,7 +366,7 @@ class SystemCheckRouteTests(unittest.TestCase):
             response = system_check_next(request)
 
         self.assertEqual(response.status_code, 200)
-        body = response.body.decode()
+        body = normalized_body(response)
         self.assertIn("Resolve the critical checks before continuing.", body)
         self.assertIn("OK, I connected ethernet", body)
         self.assertIn("Use a real Ubuntu Server system for full setup testing.", body)
@@ -494,7 +688,11 @@ class SystemCheckRouteTests(unittest.TestCase):
             }
         ]
 
-        with patch("app.main.apply_share_setup", return_value=passed_result):
+        def slow_apply_share_setup(**_kwargs):
+            time.sleep(0.05)
+            return passed_result
+
+        with patch("app.main.apply_share_setup", side_effect=slow_apply_share_setup):
             response = run_apply(
                 request,
                 samba_password="secret-password",
@@ -519,6 +717,9 @@ class SystemCheckRouteTests(unittest.TestCase):
         self.assertIn('aria-label="Copy Windows path"', body)
         self.assertIn("navigator.clipboard.writeText", body)
         self.assertIn("SamWizard", body)
+        self.assertIn('class="app-logo"', body)
+        self.assertIn("/static/assets/samwizard_logo.png", body)
+        self.assertIn("Set up Tailscale Access", body)
 
     def test_add_drive_apply_accepts_no_password(self):
         request = FakeRequest(

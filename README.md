@@ -52,6 +52,27 @@ responses from the current browser session. Passwords and secret input are
 hidden as `********`, and the log can be cleared from the UI. Logs are
 session-only and disappear when the app process restarts.
 
+## Update the logo
+
+The header logo is served from:
+
+```text
+app/static/assets/samwizard_logo.png
+```
+
+To change it, replace that file with another PNG using the same filename, then
+refresh the browser. A square transparent PNG is easiest to manage; `128x128`
+or larger is recommended. The current source image is `1254x1254`.
+
+SVG also works. Add the SVG to `app/static/assets/`, then update the logo `src`
+in `app/templates/base.html` from `/assets/samwizard_logo.png` to the SVG file.
+
+To adjust the displayed size, edit `.app-logo` in `app/static/styles.css`.
+Change `width` and `height` together to keep the logo square. The current
+display size is `42px` by `42px`. The `<img>` also has matching `width` and
+`height` attributes as a fallback if the stylesheet is cached or slow to load.
+CSS still controls the final rendered size when loaded.
+
 ## Build release assets
 
 From WSL or Linux:
@@ -86,7 +107,7 @@ Use a real Ubuntu Server system with systemd. WSL is useful for unit tests, but
 it is not the target for the service installer.
 
 ```bash
-curl -fsSL https://github.com/NoobCity99/samwizard/releases/download/test3/samwizard.sh -o samwizard.sh
+curl -fsSL https://github.com/NoobCity99/samwizard/releases/latest/download/samwizard.sh -o samwizard.sh
 sudo bash samwizard.sh
 ```
 

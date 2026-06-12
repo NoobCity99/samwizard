@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Form, Request
@@ -22,6 +23,10 @@ from app.command_log import (
     logged_command_runner,
     logged_detection_runner,
 )
+from app.firewall_manager import (
+    apply_firewall_rules,
+    firewall_context as build_firewall_context,
+)
 from app.share_targets import (
     DEFAULT_MOUNT_ACCESS,
     drive_diagnostics,
@@ -37,6 +42,11 @@ from app.settings import session_secret_key
 from app.system_actions import apply_share_setup
 from app.system_checks import system_checks_from_info, system_summary as build_system_summary
 from app.system_info import detect_internet_connectivity, detect_system_info
+from app.tailscale_manager import (
+    detect_tailscale,
+    install_tailscale,
+    start_tailscale_login,
+)
 from app.wifi_actions import apply_wifi_setup
 
 
@@ -47,6 +57,22 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
 
 
+STATIC_DIR = Path("app/static")
+LANDING_ASSET_DIR = STATIC_DIR / "assets" / "landing"
+LANDING_ASSET_CONFIG = {
+    "banner": {
+        "filename": "landing_banner.png",
+        "ratio": "1920x631",
+    },
+    "samba_intro": {
+        "filename": "landing_samba_intro.png",
+        "ratio": "16:9",
+    },
+    "server_intro": {
+        "filename": "landing_server_intro.png",
+        "ratio": "16:9",
+    },
+}
 STEP_ORDER = [
     "Welcome",
     "System Check",
@@ -66,6 +92,16 @@ ADD_DRIVE_STEP_ORDER = [
     "Apply",
     "Done",
 ]
+TAILSCALE_STEP_ORDER = [
+    "Choose Share",
+    "What Changes",
+    "Check",
+    "Install",
+    "Authorize",
+    "Firewall",
+    "New Address",
+    "Windows PC",
+]
 SETUP_MODE_INITIAL = "initial_setup"
 SETUP_MODE_ADD_DRIVE = "add_drive"
 SETUP_MODE_UNSUPPORTED = "unsupported_existing_samba"
@@ -80,8 +116,30 @@ def wizard_state(request: Request) -> dict[str, Any]:
     return state
 
 
+def tailscale_state(request: Request) -> dict[str, Any]:
+    state = wizard_state(request)
+    tailscale = state.setdefault("tailscale", {})
+    if not isinstance(tailscale, dict):
+        tailscale = {}
+        state["tailscale"] = tailscale
+    return tailscale
+
+
 def redirect(path: str) -> RedirectResponse:
     return RedirectResponse(path, status_code=303)
+
+
+def landing_assets() -> dict[str, dict[str, str | bool]]:
+    assets: dict[str, dict[str, str | bool]] = {}
+    for name, details in LANDING_ASSET_CONFIG.items():
+        filename = details["filename"]
+        assets[name] = {
+            "filename": filename,
+            "ratio": details["ratio"],
+            "src": f"/assets/landing/{filename}",
+            "exists": (LANDING_ASSET_DIR / filename).is_file(),
+        }
+    return assets
 
 
 def selected_location(state: dict[str, Any]) -> dict[str, Any] | None:
@@ -227,7 +285,7 @@ def context(request: Request, step: str, **extra: Any) -> dict[str, Any]:
     state = wizard_state(request)
     command_log_id_from_state(state)
     system = extra.pop("system", None) or system_summary()
-    steps = step_order_for_state(state)
+    steps = extra.pop("steps", None) or step_order_for_state(state)
     base = {
         "request": request,
         "step": step,
@@ -244,7 +302,105 @@ def context(request: Request, step: str, **extra: Any) -> dict[str, Any]:
     return base
 
 
+def tailscale_context(request: Request, step: str, **extra: Any) -> dict[str, Any]:
+    return context(request, step, steps=TAILSCALE_STEP_ORDER, **extra)
+
+
+def windows_share_path(ip_address: str, share_name: str) -> str:
+    return f"\\\\{ip_address}\\{share_name}"
+
+
+def samba_share_options(request: Request) -> tuple[list[dict[str, str]], dict[str, Any]]:
+    state = wizard_state(request)
+    options: list[dict[str, str]] = []
+    seen_names: set[str] = set()
+
+    cached = cached_system_summary(state)
+    if state.get("applied") and state.get("share_name"):
+        name = safe_name(state.get("share_name") or "Backups")
+        add_samba_share_option(
+            options,
+            seen_names,
+            {
+                "id": "session",
+                "name": name,
+                "path": str(selected_location(state).get("mount_path") if selected_location(state) else ""),
+                "local_ip": cached["ip_address"],
+                "source": "Current SamWizard session",
+            },
+        )
+
+    system_info = detect_system_info(
+        command_runner=logged_detection_runner(state, phase="Tailscale Check"))
+    system = system_summary(system_info)
+    for index, share in enumerate(system_info.get("samba", {}).get("shares") or []):
+        name = str(share.get("name") or "").strip()
+        if not name:
+            continue
+        add_samba_share_option(
+            options,
+            seen_names,
+            {
+                "id": f"detected-{index}",
+                "name": name,
+                "path": str(share.get("path") or ""),
+                "local_ip": system["ip_address"],
+                "source": "Detected Samba configuration",
+            },
+        )
+
+    for option in options:
+        option["local_path"] = windows_share_path(option["local_ip"], option["name"])
+    return options, system_info
+
+
+def add_samba_share_option(
+    options: list[dict[str, str]],
+    seen_names: set[str],
+    option: dict[str, str],
+) -> None:
+    key = option["name"].strip().lower()
+    if key in seen_names:
+        return
+    options.append(option)
+    seen_names.add(key)
+
+
+def selected_tailscale_share(request: Request) -> dict[str, str] | None:
+    share = tailscale_state(request).get("share")
+    if isinstance(share, dict) and share.get("name") and share.get("local_path"):
+        return {str(key): str(value) for key, value in share.items()}
+    return None
+
+
+def store_tailscale_share(request: Request, share: dict[str, str]) -> None:
+    tailscale_state(request)["share"] = dict(share)
+    request.session["wizard"] = wizard_state(request)
+
+
+def tailscale_info_for_request(request: Request) -> dict[str, Any]:
+    state = wizard_state(request)
+    return detect_tailscale(
+        command_runner=logged_command_runner(
+            state,
+            "Tailscale Check",
+            log_start=False,
+        )
+    )
+
+
 @app.get("/")
+def landing(request: Request):
+    return templates.TemplateResponse(
+        "landing.html",
+        {
+            "request": request,
+            "assets": landing_assets(),
+        },
+    )
+
+
+@app.get("/samba")
 def welcome(request: Request):
     return templates.TemplateResponse("welcome.html", context(request, "Welcome"))
 
@@ -253,6 +409,338 @@ def welcome(request: Request):
 def start(request: Request):
     request.session["wizard"] = {}
     return redirect("/system-check")
+
+
+@app.get("/tailscale")
+def tailscale_choose(request: Request):
+    options, system_info = samba_share_options(request)
+    if not options:
+        return templates.TemplateResponse(
+            "tailscale_choose.html",
+            tailscale_context(
+                request,
+                "Choose Share",
+                share_options=[],
+                no_share=True,
+                error=None,
+                system=system_summary(system_info),
+            ),
+        )
+    if len(options) == 1:
+        store_tailscale_share(request, options[0])
+        return redirect("/tailscale/what-changes")
+    return templates.TemplateResponse(
+        "tailscale_choose.html",
+        tailscale_context(
+            request,
+            "Choose Share",
+            share_options=options,
+            no_share=False,
+            error=None,
+            system=system_summary(system_info),
+        ),
+    )
+
+
+@app.post("/tailscale")
+def tailscale_select_share(request: Request, share_id: str = Form("")):
+    options, system_info = samba_share_options(request)
+    selected = next((option for option in options if option["id"] == share_id), None)
+    if selected is None:
+        return templates.TemplateResponse(
+            "tailscale_choose.html",
+            tailscale_context(
+                request,
+                "Choose Share",
+                share_options=options,
+                no_share=not options,
+                error="Choose a Samba share before continuing.",
+                system=system_summary(system_info),
+            ),
+            status_code=400,
+        )
+    store_tailscale_share(request, selected)
+    return redirect("/tailscale/what-changes")
+
+
+@app.get("/tailscale/what-changes")
+def tailscale_what_changes(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    return templates.TemplateResponse(
+        "tailscale_what_changes.html",
+        tailscale_context(request, "What Changes", share=share),
+    )
+
+
+@app.get("/tailscale/check")
+def tailscale_check(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    info = tailscale_info_for_request(request)
+    internet = detect_internet_connectivity()
+    return templates.TemplateResponse(
+        "tailscale_check.html",
+        tailscale_context(
+            request,
+            "Check",
+            share=share,
+            tailscale=info,
+            internet=internet,
+            error=None,
+        ),
+    )
+
+
+@app.post("/tailscale/check")
+def tailscale_check_next(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    info = tailscale_info_for_request(request)
+    if info.get("connected") and info.get("ipv4"):
+        tailscale_state(request)["tailscale_ip"] = info["ipv4"]
+        request.session["wizard"] = wizard_state(request)
+        return redirect("/tailscale/firewall")
+    if not info.get("installed"):
+        return redirect("/tailscale/install")
+    return redirect("/tailscale/authorize")
+
+
+@app.get("/tailscale/install")
+def tailscale_install_page(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    info = tailscale_info_for_request(request)
+    state = tailscale_state(request)
+    return templates.TemplateResponse(
+        "tailscale_install.html",
+        tailscale_context(
+            request,
+            "Install",
+            share=share,
+            tailscale=info,
+            results=state.get("install_results", []),
+            error=None,
+        ),
+    )
+
+
+@app.post("/tailscale/install")
+def tailscale_run_install(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    state = wizard_state(request)
+    results = install_tailscale(
+        command_runner=logged_command_runner(state, "Tailscale Install"))
+    tailscale_state(request)["install_results"] = results
+    request.session["wizard"] = state
+    if all(result.get("status") == "passed" for result in results):
+        return redirect("/tailscale/authorize")
+    return templates.TemplateResponse(
+        "tailscale_install.html",
+        tailscale_context(
+            request,
+            "Install",
+            share=share,
+            tailscale=tailscale_info_for_request(request),
+            results=results,
+            error="Tailscale install stopped before finishing. Check the failed step below.",
+        ),
+        status_code=400,
+    )
+
+
+@app.get("/tailscale/authorize")
+def tailscale_authorize_page(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    info = tailscale_info_for_request(request)
+    if info.get("connected") and info.get("ipv4"):
+        tailscale_state(request)["tailscale_ip"] = info["ipv4"]
+        request.session["wizard"] = wizard_state(request)
+        return redirect("/tailscale/firewall")
+    state = tailscale_state(request)
+    return templates.TemplateResponse(
+        "tailscale_authorize.html",
+        tailscale_context(
+            request,
+            "Authorize",
+            share=share,
+            tailscale=info,
+            login_url=state.get("login_url"),
+            result=state.get("authorize_result"),
+            error=None,
+        ),
+    )
+
+
+@app.post("/tailscale/authorize/start")
+def tailscale_authorize_start(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    state = wizard_state(request)
+    outcome = start_tailscale_login(
+        command_runner=logged_command_runner(state, "Tailscale Authorize"))
+    tailscale = tailscale_state(request)
+    tailscale["login_url"] = outcome.get("login_url")
+    tailscale["authorize_result"] = outcome.get("result")
+    request.session["wizard"] = state
+    return redirect("/tailscale/authorize")
+
+
+@app.post("/tailscale/authorize/check")
+def tailscale_authorize_check(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    info = tailscale_info_for_request(request)
+    if info.get("connected") and info.get("ipv4"):
+        tailscale_state(request)["tailscale_ip"] = info["ipv4"]
+        request.session["wizard"] = wizard_state(request)
+        return redirect("/tailscale/firewall")
+    state = tailscale_state(request)
+    return templates.TemplateResponse(
+        "tailscale_authorize.html",
+        tailscale_context(
+            request,
+            "Authorize",
+            share=share,
+            tailscale=info,
+            login_url=state.get("login_url"),
+            result=state.get("authorize_result"),
+            error="Tailscale does not show this server as connected yet. Approve the server, then check again.",
+        ),
+        status_code=400,
+    )
+
+
+@app.get("/tailscale/firewall")
+def tailscale_firewall_page(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    info = tailscale_info_for_request(request)
+    tailscale_ip = tailscale_state(request).get("tailscale_ip") or info.get("ipv4")
+    if not tailscale_ip:
+        return redirect("/tailscale/authorize")
+    tailscale_state(request)["tailscale_ip"] = tailscale_ip
+    firewall = build_firewall_context(
+        logged_command_runner(wizard_state(request), "Firewall Check", log_start=False))
+    request.session["wizard"] = wizard_state(request)
+    return templates.TemplateResponse(
+        "tailscale_firewall.html",
+        tailscale_context(
+            request,
+            "Firewall",
+            share=share,
+            tailscale_ip=tailscale_ip,
+            firewall=firewall,
+            results=tailscale_state(request).get("firewall_results", []),
+            error=None,
+        ),
+    )
+
+
+@app.post("/tailscale/firewall")
+def tailscale_firewall_apply(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    tailscale_ip = tailscale_state(request).get("tailscale_ip")
+    if not tailscale_ip:
+        return redirect("/tailscale/authorize")
+    state = wizard_state(request)
+    firewall = build_firewall_context(
+        logged_command_runner(state, "Firewall Check", log_start=False))
+    preview = firewall.get("preview", {})
+    if not preview.get("can_apply"):
+        return templates.TemplateResponse(
+            "tailscale_firewall.html",
+            tailscale_context(
+                request,
+                "Firewall",
+                share=share,
+                tailscale_ip=tailscale_ip,
+                firewall=firewall,
+                results=[],
+                error=preview.get("message") or "Firewall rules could not be prepared.",
+            ),
+            status_code=400,
+        )
+    results = apply_firewall_rules(
+        logged_command_runner(state, "Firewall"),
+        lan_cidrs=firewall.get("lan_cidrs", []),
+        ufw_active=bool(firewall.get("ufw_active")),
+        samba_app_available=bool(firewall.get("samba_app_available")),
+    )
+    tailscale_state(request)["firewall_results"] = results
+    request.session["wizard"] = state
+    if all(result.get("status") == "passed" for result in results):
+        return redirect("/tailscale/done")
+    return templates.TemplateResponse(
+        "tailscale_firewall.html",
+        tailscale_context(
+            request,
+            "Firewall",
+            share=share,
+            tailscale_ip=tailscale_ip,
+            firewall=firewall,
+            results=results,
+            error="Firewall setup stopped before finishing. Review the failed step below.",
+        ),
+        status_code=400,
+    )
+
+
+@app.get("/tailscale/done")
+def tailscale_done(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    tailscale_ip = tailscale_state(request).get("tailscale_ip")
+    if not tailscale_ip:
+        info = tailscale_info_for_request(request)
+        tailscale_ip = info.get("ipv4")
+    if not tailscale_ip:
+        return redirect("/tailscale/authorize")
+    tailscale_state(request)["tailscale_ip"] = tailscale_ip
+    request.session["wizard"] = wizard_state(request)
+    return templates.TemplateResponse(
+        "tailscale_done.html",
+        tailscale_context(
+            request,
+            "New Address",
+            share=share,
+            local_path=share["local_path"],
+            tailscale_path=windows_share_path(str(tailscale_ip), share["name"]),
+        ),
+    )
+
+
+@app.get("/tailscale/windows")
+def tailscale_windows(request: Request):
+    share = selected_tailscale_share(request)
+    if share is None:
+        return redirect("/tailscale")
+    tailscale_ip = tailscale_state(request).get("tailscale_ip")
+    if not tailscale_ip:
+        return redirect("/tailscale/done")
+    return templates.TemplateResponse(
+        "tailscale_windows.html",
+        tailscale_context(
+            request,
+            "Windows PC",
+            share=share,
+            tailscale_path=windows_share_path(str(tailscale_ip), share["name"]),
+        ),
+    )
 
 
 @app.get("/system-check")
@@ -490,7 +978,6 @@ def save_user_setup(
         )
 
     state["username"] = clean_username
-    state.pop("password_confirmed", None)
     request.session["wizard"] = state
     return redirect("/review")
 
@@ -677,19 +1164,6 @@ def reconcile_apply_job_state(state: dict[str, Any]) -> dict[str, Any] | None:
         state["selected_location"] = job["selected_location"]
     state["applied"] = job["status"] == STATUS_SUCCEEDED
     return job
-
-
-def render_apply_failure(request: Request, state: dict[str, Any]):
-    return templates.TemplateResponse(
-        "apply.html",
-        context(
-            request,
-            "Apply",
-            results=state.get("apply_results", []),
-            error="Oh no! Setup stopped before finishing. Review the failed step below.",
-        ),
-        status_code=400,
-    )
 
 
 @app.post("/command-log/clear")

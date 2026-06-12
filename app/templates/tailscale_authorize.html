@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Approve this server{% endblock %}
+
+{% block content %}
+<p class="lead">
+  Tailscale needs you to approve this Ubuntu server in your Tailscale account.
+</p>
+
+{% if login_url %}
+<div class="connection">
+  <span>Tailscale approval link</span>
+  <code>{{ login_url }}</code>
+</div>
+<p class="hint">Open that link, sign in, and approve this server. Then come back and check again.</p>
+{% else %}
+<div class="notice">
+  Start the approval process to get a Tailscale sign-in link for this server.
+</div>
+{% endif %}
+
+{% if result %}
+<ul class="status-list apply-results" aria-label="Tailscale authorization result">
+  <li class="result-{{ result.status }}">
+    <span class="check">{{ "OK" if result.status == "passed" else "Stop" }}</span>
+    <span>
+      <strong>{{ result.title }}</strong>
+      <small>{{ result.summary }}</small>
+    </span>
+  </li>
+</ul>
+{% endif %}
+
+<div class="actions split">
+  <a href="/tailscale/install" class="secondary">Back</a>
+  <form method="post" action="/tailscale/authorize/start">
+    <button type="submit">Start approval</button>
+  </form>
+  <form method="post" action="/tailscale/authorize/check">
+    <button type="submit" class="secondary-button">I approved the server. Check again.</button>
+  </form>
+</div>
+{% endblock %}
