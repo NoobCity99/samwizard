@@ -281,6 +281,13 @@ h1 {
   font-size: 1.06rem;
 }
 
+.leadx {
+  max-width: 900px;
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 1.06rem;
+}
+
 .summary,
 .facts {
   display: grid;

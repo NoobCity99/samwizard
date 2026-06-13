@@ -34,10 +34,12 @@
           height="100" alt="" aria-hidden="true">
         <b class="eyebrow">SamWizard</b>
         <h1 id="landing-title">Build your beginner-friendly Ubuntu server</h1>
-        <p class="lead landing-lead">
-          <strong>CONGRATS!!</strong> You just set up a Linux Server on your own! It can do a lot of powerful things.
-          <u>BUT TODAY</u>, we're going to set up a Share Drive on the server for you to be able access remotely from a
-          Windows PC.
+        <p class="leadx landing-lead">
+          <strong style="color: darkorange;"> CONGRATS!! You just set up a Linux Server on your
+            own!</strong><br>
+          Your server can do a lot of powerful things, <u>BUT TODAY</u>, we're going to set up a Share Drive on your new
+          server for you to be able access remotely from a
+          Windows PC. <br>
           <u>IDEALLY</u> you have an external hard drive or SSD you've connected to your server via USB, this can be a
           new one or one you've used for a while and don't want to have to carry around anymore.
         </p>
@@ -47,7 +49,7 @@
         {{ asset_slot(assets.banner, "landing-banner") }}
 
         <section class="landing-section" aria-labelledby="about-samwizard">
-          <h2 id="about-samwizard">What is SamWizard?</h2>
+          <h2 id="about-samwizard">More about SamWizard</h2>
           <div class="landing-feature-grid">
             {{ asset_slot(assets.samba_intro, "landing-feature-media") }}
             <div class="landing-copy-panel">
@@ -89,6 +91,27 @@
                 Placeholder copy for a future beginner-friendly Ubuntu Server and command-line learning path.
               </p>
             </article>
+          </div>
+        </section>
+        <section class="landing-section" aria-labelledby="more-samwizard-info">
+          <h2 id="more-samwizard-info">What is SamWizard Acadamy?</h2>
+          <div class="landing-feature-grid">
+            {{ asset_slot(assets.wiz_academy_1, "landing-feature-media") }}
+            <div class="landing-copy-panel">
+              <strong>Placeholder explainer headline</strong>
+              <p>
+                Placeholder text for the first SamWizard explainer block. This area can describe the main problem the
+                app solves for new Ubuntu Server users.
+              </p>
+            </div>
+            <div class="landing-copy-panel">
+              <strong>Placeholder server basics headline</strong>
+              <p>
+                Placeholder text for the second explainer block. This area can explain that SamWizard guides users
+                through setup without requiring Linux command-line knowledge.
+              </p>
+            </div>
+            {{ asset_slot(assets.wiz_academy_2, "landing-feature-media") }}
           </div>
         </section>
       </div>

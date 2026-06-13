@@ -72,6 +72,14 @@ LANDING_ASSET_CONFIG = {
         "filename": "landing_server_intro.png",
         "ratio": "16:9",
     },
+    "wiz_academy_1": {
+        "filename": "WizAcademy1.png",
+        "ratio": "16:9",
+    },
+    "wiz_academy_2": {
+        "filename": "WizAcademy2.png",
+        "ratio": "16:9",
+    },
 }
 STEP_ORDER = [
     "Welcome",
