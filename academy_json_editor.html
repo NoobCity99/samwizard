@@ -75,6 +75,10 @@
       font-size: .88rem;
     }
     button:hover, .file-label:hover { border-color: var(--accent); }
+    button:disabled {
+      opacity: .48;
+      cursor: not-allowed;
+    }
     .primary {
       background: linear-gradient(135deg, var(--accent), #2563eb);
       border-color: transparent;
@@ -154,6 +158,7 @@
     }
     textarea { min-height: 92px; resize: vertical; }
     textarea.short { min-height: 58px; }
+    textarea.command-output { min-height: 126px; font-family: var(--mono); }
     input:focus, textarea:focus, select:focus {
       outline: 2px solid rgba(56,189,248,.34);
       border-color: var(--accent);
@@ -261,10 +266,66 @@
       padding: 10px 0 0;
     }
     .checkline input { width: auto; }
+    .unlock-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .unlock-option {
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px;
+      background: rgba(9,17,39,.42);
+      color: var(--text);
+      font-size: .84rem;
+    }
+    .unlock-option input {
+      width: auto;
+      margin-top: 2px;
+    }
+    .validation-card {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      background: rgba(9,17,39,.42);
+    }
+    .validation-card.ok { border-color: rgba(52,211,153,.52); }
+    .validation-card.error { border-color: rgba(251,113,133,.6); }
+    .validation-card.warn { border-color: rgba(249,115,22,.56); }
+    .validation-card h3 {
+      margin: 0 0 8px;
+      font-size: .92rem;
+    }
+    .validation-card ul {
+      margin: 0;
+      padding-left: 20px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .compat-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .compat-stat {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(9,17,39,.42);
+    }
+    .compat-stat strong {
+      display: block;
+      font-size: 1.2rem;
+    }
     @media (max-width: 980px) {
       main { grid-template-columns: 1fr; }
       aside { position: static; height: auto; }
-      .grid, .grid-3 { grid-template-columns: 1fr; }
+      .grid, .grid-3, .unlock-list, .compat-grid { grid-template-columns: 1fr; }
       .topbar { grid-template-columns: 1fr; }
       .actions { justify-content: flex-start; }
     }
@@ -319,8 +380,14 @@
     <div class="panel" id="editor"></div>
 
     <div class="panel">
+      <h2>Academy Compatibility</h2>
+      <div id="compatSummary" class="compat-grid"></div>
+      <div id="validationMessages"></div>
+    </div>
+
+    <div class="panel">
       <h2>JSON Preview</h2>
-      <div class="hint">This preview uses <span class="mono">JSON.stringify(data, null, 2)</span> and keeps the same key order as the source file.</div>
+      <div class="hint">This preview uses the same export serializer as Copy JSON and Export JSON, then formats with <span class="mono">JSON.stringify(data, null, 2)</span>.</div>
       <pre id="preview" class="preview"></pre>
     </div>
   </section>
@@ -855,27 +922,75 @@ let data = deepClone(originalData);
 let selectedIndex = 0;
 
 const $ = (id) => document.getElementById(id);
+const allowedSlots = [
+  "top-left",
+  "top-center",
+  "top-right",
+  "upper-left",
+  "upper-right",
+  "middle-left",
+  "middle-right",
+  "far-left",
+  "lower-left",
+  "lower-center",
+  "bottom-center",
+  "far-right"
+];
+const builtinIconNames = [
+  "server",
+  "terminal",
+  "identity",
+  "folder",
+  "compass",
+  "document",
+  "network",
+  "drive",
+  "lock",
+  "gear",
+  "share",
+  "link",
+  "graduate",
+  "spark"
+];
+
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 
-function orderedSkill(skill) {
+function uniqueStrings(items) {
+  const seen = new Set();
+  const result = [];
+  (Array.isArray(items) ? items : []).forEach((item) => {
+    const value = String(item || "").trim();
+    if (value && !seen.has(value)) {
+      seen.add(value);
+      result.push(value);
+    }
+  });
+  return result;
+}
+
+function normalizedSkill(skill) {
+  const iconType = skill.icon?.type === "asset" ? "asset" : "builtin";
   return {
     id: skill.id || "",
     title: skill.title || "",
     icon: {
-      type: skill.icon?.type || "builtin",
-      name: skill.icon?.name || ""
+      type: iconType,
+      name: skill.icon?.name || "spark",
+      src: skill.icon?.src || ""
     },
     summary: skill.summary || "",
     map: {
-      row: Number(skill.map?.row ?? 0),
-      col: Number(skill.map?.col ?? 0)
+      row: skill.map?.row ?? 0,
+      col: skill.map?.col ?? 0
     },
     layout: {
       slot: skill.layout?.slot || "",
-      group: skill.layout?.group || ""
+      group: skill.layout?.group || "",
+      rank: skill.layout?.rank ?? "",
+      lane: skill.layout?.lane ?? ""
     },
     starts_unlocked: Boolean(skill.starts_unlocked),
-    unlocks: Array.isArray(skill.unlocks) ? skill.unlocks : [],
+    unlocks: uniqueStrings(skill.unlocks),
     lesson: {
       intro: Array.isArray(skill.lesson?.intro) ? skill.lesson.intro : [],
       commands: Array.isArray(skill.lesson?.commands) ? skill.lesson.commands.map(c => ({
@@ -895,13 +1010,69 @@ function normalizeData(input) {
     id: input.id || "",
     title: input.title || "",
     summary: input.summary || "",
-    skills: Array.isArray(input.skills) ? input.skills.map(orderedSkill) : []
+    skills: Array.isArray(input.skills) ? input.skills.map(normalizedSkill) : []
+  };
+}
+
+function integerOrRaw(value) {
+  if (value === "" || value === null || value === undefined) return "";
+  const numeric = Number(value);
+  return Number.isInteger(numeric) ? numeric : value;
+}
+
+function serializedSkill(skill) {
+  const icon = skill.icon.type === "asset"
+    ? { type: "asset", src: skill.icon.src || "" }
+    : { type: "builtin", name: skill.icon.name || "spark" };
+
+  const layout = {};
+  if (skill.layout.slot) layout.slot = skill.layout.slot;
+  if (skill.layout.group) layout.group = skill.layout.group;
+  if (String(skill.layout.rank).trim() !== "") {
+    layout.rank = Number.isInteger(Number(skill.layout.rank)) ? Number(skill.layout.rank) : skill.layout.rank;
+  }
+  if (String(skill.layout.lane).trim() !== "") {
+    layout.lane = Number.isInteger(Number(skill.layout.lane)) ? Number(skill.layout.lane) : skill.layout.lane;
+  }
+
+  return {
+    id: skill.id || "",
+    title: skill.title || "",
+    icon,
+    summary: skill.summary || "",
+    map: {
+      row: integerOrRaw(skill.map.row),
+      col: integerOrRaw(skill.map.col)
+    },
+    layout,
+    starts_unlocked: Boolean(skill.starts_unlocked),
+    unlocks: uniqueStrings(skill.unlocks),
+    lesson: {
+      intro: Array.isArray(skill.lesson.intro) ? skill.lesson.intro : [],
+      commands: Array.isArray(skill.lesson.commands) ? skill.lesson.commands.map(c => ({
+        command: c.command || "",
+        origin: c.origin || "",
+        purpose: c.purpose || "",
+        outcome: c.outcome || ""
+      })) : [],
+      exercise: skill.lesson.exercise || "",
+      paste_prompt: skill.lesson.paste_prompt || ""
+    }
+  };
+}
+
+function serializedData(input) {
+  return {
+    id: input.id || "",
+    title: input.title || "",
+    summary: input.summary || "",
+    skills: Array.isArray(input.skills) ? input.skills.map(serializedSkill) : []
   };
 }
 
 function renderAll() {
   data = normalizeData(data);
-  selectedIndex = Math.min(selectedIndex, Math.max(0, data.skills.length - 1));
+  selectedIndex = data.skills.length ? Math.min(Math.max(selectedIndex, 0), data.skills.length - 1) : -1;
   renderCourse();
   renderSkillList();
   renderEditor();
@@ -930,6 +1101,29 @@ function renderSkillList() {
     btn.onclick = () => { selectedIndex = i; renderAll(); };
     box.appendChild(btn);
   });
+}
+
+function slotOptions(current) {
+  const values = ["", ...allowedSlots];
+  const options = values.map((value) => {
+    const label = value || "No fixed slot";
+    return `<option value="${attr(value)}" ${value === current ? "selected" : ""}>${escapeHtml(label)}</option>`;
+  });
+  if (current && !allowedSlots.includes(current)) {
+    options.unshift(`<option value="${attr(current)}" selected>Unknown: ${escapeHtml(current)}</option>`);
+  }
+  return options.join("");
+}
+
+function iconNameOptions(current) {
+  const value = current || "spark";
+  const options = builtinIconNames.map((name) =>
+    `<option value="${attr(name)}" ${name === value ? "selected" : ""}>${escapeHtml(name)}</option>`
+  );
+  if (value && !builtinIconNames.includes(value)) {
+    options.unshift(`<option value="${attr(value)}" selected>Unknown: ${escapeHtml(value)}</option>`);
+  }
+  return options.join("");
 }
 
 function renderEditor() {
@@ -961,11 +1155,18 @@ function renderEditor() {
     <div class="grid-3" style="margin-top:14px;">
       <div>
         <label>Icon Type</label>
-        <input id="iconType" class="mono" value="${attr(skill.icon.type)}">
+        <select id="iconType">
+          <option value="builtin" ${skill.icon.type === "builtin" ? "selected" : ""}>builtin</option>
+          <option value="asset" ${skill.icon.type === "asset" ? "selected" : ""}>asset</option>
+        </select>
       </div>
-      <div>
+      <div id="iconNameWrap" style="${skill.icon.type === "asset" ? "display:none;" : ""}">
         <label>Icon Name</label>
-        <input id="iconName" class="mono" value="${attr(skill.icon.name)}">
+        <select id="iconName" class="mono">${iconNameOptions(skill.icon.name)}</select>
+      </div>
+      <div id="iconSrcWrap" style="${skill.icon.type === "asset" ? "" : "display:none;"}">
+        <label>Icon Src</label>
+        <input id="iconSrc" class="mono" placeholder="/static/assets/academy/icons/my-icon.png" value="${attr(skill.icon.src)}">
       </div>
       <div class="checkline">
         <input id="startsUnlocked" type="checkbox" ${skill.starts_unlocked ? "checked" : ""}>
@@ -984,20 +1185,29 @@ function renderEditor() {
       </div>
       <div>
         <label>Layout Slot</label>
-        <input id="layoutSlot" class="mono" value="${attr(skill.layout.slot)}">
+        <select id="layoutSlot" class="mono">${slotOptions(skill.layout.slot)}</select>
       </div>
     </div>
 
-    <div class="grid" style="margin-top:14px;">
+    <div class="grid-3" style="margin-top:14px;">
       <div>
         <label>Layout Group</label>
         <input id="layoutGroup" class="mono" value="${attr(skill.layout.group)}">
       </div>
       <div>
-        <label>Unlocks</label>
-        <input id="unlocks" class="mono" value="${attr(skill.unlocks.join(', '))}">
+        <label>Layout Rank</label>
+        <input id="layoutRank" class="mono" type="number" step="1" value="${attr(skill.layout.rank)}">
+      </div>
+      <div>
+        <label>Layout Lane</label>
+        <input id="layoutLane" class="mono" type="number" step="1" value="${attr(skill.layout.lane)}">
       </div>
     </div>
+
+    <div class="section-title"><h3>Unlocks</h3></div>
+    <div class="hint">Select the direct child lessons unlocked by completing this lesson.</div>
+    <div id="unlockList" class="unlock-list"></div>
+    <div class="hint" style="margin-top:8px;">Selected: <span id="unlockSummary" class="mono"></span></div>
 
     <div class="section-title">
       <h3>Intro Paragraphs</h3>
@@ -1023,6 +1233,7 @@ function renderEditor() {
   `;
 
   bindScalarInputs(skill);
+  renderUnlockList(skill);
   renderIntroList(skill);
   renderCommandList(skill);
 
@@ -1041,13 +1252,21 @@ function bindScalarInputs(skill) {
   bind('skillId', v => skill.id = v);
   bind('skillTitle', v => skill.title = v);
   bind('skillSummary', v => skill.summary = v);
-  bind('iconType', v => skill.icon.type = v);
-  bind('iconName', v => skill.icon.name = v);
-  bind('mapRow', v => skill.map.row = Number(v || 0));
-  bind('mapCol', v => skill.map.col = Number(v || 0));
+  $('iconType').addEventListener('change', () => {
+    skill.icon.type = $('iconType').value;
+    renderAll();
+  });
+  $('iconName').addEventListener('change', () => {
+    skill.icon.name = $('iconName').value;
+    renderPreview();
+  });
+  bind('iconSrc', v => skill.icon.src = v);
+  bind('mapRow', v => skill.map.row = v === "" ? "" : Number(v));
+  bind('mapCol', v => skill.map.col = v === "" ? "" : Number(v));
   bind('layoutSlot', v => skill.layout.slot = v);
   bind('layoutGroup', v => skill.layout.group = v);
-  bind('unlocks', v => skill.unlocks = v.split(',').map(s => s.trim()).filter(Boolean));
+  bind('layoutRank', v => skill.layout.rank = v);
+  bind('layoutLane', v => skill.layout.lane = v);
   bind('exercise', v => skill.lesson.exercise = v);
   bind('pastePrompt', v => skill.lesson.paste_prompt = v);
   $('startsUnlocked').addEventListener('change', () => {
@@ -1055,6 +1274,44 @@ function bindScalarInputs(skill) {
     renderPreview();
     renderSkillList();
   });
+}
+
+function renderUnlockList(skill) {
+  const box = $('unlockList');
+  const summary = $('unlockSummary');
+  box.innerHTML = "";
+  const selected = new Set(uniqueStrings(skill.unlocks));
+  data.skills.forEach((candidate) => {
+    if (candidate.id === skill.id) {
+      return;
+    }
+    const label = document.createElement('label');
+    label.className = 'unlock-option';
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = selected.has(candidate.id);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) {
+        selected.add(candidate.id);
+      } else {
+        selected.delete(candidate.id);
+      }
+      skill.unlocks = Array.from(selected);
+      renderPreview();
+      renderUnlockSummary(skill);
+    });
+    const textBox = document.createElement('span');
+    textBox.innerHTML = `<strong>${escapeHtml(candidate.title || candidate.id || "Untitled")}</strong><br><span class="mini mono">${escapeHtml(candidate.id || "")}</span>`;
+    label.append(checkbox, textBox);
+    box.appendChild(label);
+  });
+  renderUnlockSummary(skill);
+}
+
+function renderUnlockSummary(skill) {
+  const summary = $('unlockSummary');
+  if (!summary) return;
+  summary.textContent = uniqueStrings(skill.unlocks).join(', ') || 'none';
 }
 
 function renderIntroList(skill) {
@@ -1105,7 +1362,8 @@ function renderCommandList(skill) {
       </div>
       <div>
         <label>Outcome</label>
-        <textarea class="cmd-outcome short">${text(cmd.outcome)}</textarea>
+        <textarea class="cmd-outcome command-output">${text(cmd.outcome)}</textarea>
+        <div class="hint">Use Enter for line breaks. Exported JSON will show those breaks as <span class="mono">\\n</span>, and Academy will render them as CLI-style lines.</div>
       </div>
       <div class="row-actions">
         <button class="small-btn move-up">Move Up</button>
@@ -1129,13 +1387,180 @@ function move(arr, from, to) {
   arr.splice(to, 0, item);
 }
 
+function skillLabel(skill, index) {
+  return `Lesson ${index + 1} (${skill.id || skill.title || "untitled"})`;
+}
+
+function validateData(tree) {
+  const errors = [];
+  const warnings = [];
+  const skills = Array.isArray(tree.skills) ? tree.skills : [];
+  const idCounts = new Map();
+  const ids = new Set();
+  const usedSlots = new Map();
+  let starterCount = 0;
+  let unlockEdgeCount = 0;
+
+  const error = (message) => errors.push(message);
+  const warn = (message) => warnings.push(message);
+
+  if (!String(tree.id || "").trim()) error("Course ID is required.");
+  if (!String(tree.title || "").trim()) error("Course title is required.");
+  if (!Array.isArray(tree.skills) || tree.skills.length === 0) {
+    error("Course must contain at least one skill.");
+  }
+
+  skills.forEach((skill) => {
+    const id = String(skill.id || "").trim();
+    if (!id) return;
+    idCounts.set(id, (idCounts.get(id) || 0) + 1);
+    ids.add(id);
+  });
+
+  idCounts.forEach((count, id) => {
+    if (count > 1) error(`Duplicate skill ID: ${id}.`);
+  });
+
+  skills.forEach((skill, index) => {
+    const label = skillLabel(skill, index);
+    if (!String(skill.id || "").trim()) error(`${label}: skill ID is required.`);
+    if (!String(skill.title || "").trim()) error(`${label}: title is required.`);
+    if (!String(skill.summary || "").trim()) error(`${label}: summary is required.`);
+    if (!skill.map || typeof skill.map !== "object") {
+      error(`${label}: map must be an object.`);
+    } else {
+      if (!Number.isInteger(skill.map.row)) error(`${label}: map.row must be an integer.`);
+      if (!Number.isInteger(skill.map.col)) error(`${label}: map.col must be an integer.`);
+    }
+
+    if (skill.starts_unlocked === true) starterCount += 1;
+    if (typeof skill.starts_unlocked !== "boolean") {
+      error(`${label}: starts_unlocked must be true or false.`);
+    }
+
+    if (!skill.icon || typeof skill.icon !== "object" || !String(skill.icon.type || "").trim()) {
+      error(`${label}: icon.type is required.`);
+    } else if (skill.icon.type === "asset") {
+      if (!String(skill.icon.src || "").trim()) error(`${label}: asset icons require icon.src.`);
+    } else if (skill.icon.type === "builtin") {
+      if (!builtinIconNames.includes(skill.icon.name || "")) {
+        warn(`${label}: builtin icon "${skill.icon.name || "(blank)"}" is not in academy.html and will render as spark.`);
+      }
+    } else {
+      error(`${label}: icon.type must be builtin or asset.`);
+    }
+
+    if (skill.layout && typeof skill.layout === "object") {
+      const slot = skill.layout.slot;
+      if (slot) {
+        if (!allowedSlots.includes(slot)) {
+          error(`${label}: layout.slot "${slot}" is not a known slot.`);
+        } else if (usedSlots.has(slot)) {
+          warn(`${label}: layout.slot "${slot}" is also used by ${usedSlots.get(slot)}.`);
+        } else {
+          usedSlots.set(slot, label);
+        }
+      }
+      ["rank", "lane"].forEach((field) => {
+        if (field in skill.layout && (!Number.isInteger(skill.layout[field]) || skill.layout[field] < 0)) {
+          error(`${label}: layout.${field} must be a non-negative integer.`);
+        }
+      });
+    }
+
+    if (!Array.isArray(skill.unlocks)) {
+      error(`${label}: unlocks must be a list of skill IDs.`);
+    } else {
+      const localUnlocks = new Set();
+      skill.unlocks.forEach((targetId) => {
+        unlockEdgeCount += 1;
+        if (localUnlocks.has(targetId)) {
+          error(`${label}: unlocks contains duplicate target "${targetId}".`);
+        }
+        localUnlocks.add(targetId);
+        if (targetId === skill.id) warn(`${label}: unlocks itself.`);
+        if (!ids.has(targetId)) error(`${label}: unlocks missing skill "${targetId}".`);
+      });
+    }
+
+    if (!skill.lesson || typeof skill.lesson !== "object") {
+      error(`${label}: lesson must be an object.`);
+      return;
+    }
+    if (!Array.isArray(skill.lesson.intro) || !skill.lesson.intro.every(item => typeof item === "string")) {
+      error(`${label}: lesson.intro must be a list of strings.`);
+    }
+    if (!Array.isArray(skill.lesson.commands)) {
+      error(`${label}: lesson.commands must be a list.`);
+    } else {
+      skill.lesson.commands.forEach((command, commandIndex) => {
+        const commandLabel = `${label} command ${commandIndex + 1}`;
+        ["command", "origin", "purpose", "outcome"].forEach((field) => {
+          if (!String(command[field] || "").trim()) {
+            error(`${commandLabel}: ${field} is required.`);
+          }
+        });
+      });
+    }
+    ["exercise", "paste_prompt"].forEach((field) => {
+      if (field in skill.lesson && typeof skill.lesson[field] !== "string") {
+        error(`${label}: lesson.${field} must be a string.`);
+      }
+    });
+  });
+
+  if (skills.length !== 12) warn(`Academy static map is designed for 12 skills; this file has ${skills.length}.`);
+  if (starterCount === 0) warn("No skills start unlocked.");
+  const missingSlots = allowedSlots.filter(slot => !usedSlots.has(slot));
+  if (missingSlots.length) warn(`Unused fixed slots: ${missingSlots.join(", ")}.`);
+
+  return {
+    errors,
+    warnings,
+    summary: {
+      skills: skills.length,
+      starters: starterCount,
+      slots: usedSlots.size,
+      missingSlots: missingSlots.length,
+      unlocks: unlockEdgeCount
+    }
+  };
+}
+
+function renderValidation(validation) {
+  $('compatSummary').innerHTML = `
+    <div class="compat-stat"><strong>${validation.summary.skills}</strong><span class="mini">skills</span></div>
+    <div class="compat-stat"><strong>${validation.summary.starters}</strong><span class="mini">starters</span></div>
+    <div class="compat-stat"><strong>${validation.summary.slots}</strong><span class="mini">used slots</span></div>
+    <div class="compat-stat"><strong>${validation.summary.missingSlots}</strong><span class="mini">missing slots</span></div>
+    <div class="compat-stat"><strong>${validation.summary.unlocks}</strong><span class="mini">unlock edges</span></div>`;
+
+  const blocks = [];
+  if (!validation.errors.length && !validation.warnings.length) {
+    blocks.push('<div class="validation-card ok"><h3>Valid for Academy export</h3><div class="hint">No errors or warnings found.</div></div>');
+  } else if (!validation.errors.length) {
+    blocks.push('<div class="validation-card ok"><h3>Export allowed</h3><div class="hint">There are warnings below, but no blocking schema errors.</div></div>');
+  }
+  if (validation.errors.length) {
+    blocks.push(`<div class="validation-card error"><h3>Errors block export</h3><ul>${validation.errors.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`);
+  }
+  if (validation.warnings.length) {
+    blocks.push(`<div class="validation-card warn" style="margin-top:12px;"><h3>Warnings</h3><ul>${validation.warnings.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`);
+  }
+  $('validationMessages').innerHTML = blocks.join("");
+  $('copyBtn').disabled = validation.errors.length > 0;
+  $('downloadBtn').disabled = validation.errors.length > 0;
+}
+
 function renderPreview() {
   // Do not replace the live `data` object here.
   // Field listeners hold references to the currently edited skill object.
   // Reassigning `data = normalizeData(data)` during every keystroke creates
   // fresh skill objects and leaves those listeners editing stale copies.
   // Generate a normalized preview/export copy instead.
-  $('preview').textContent = JSON.stringify(normalizeData(data), null, 2) + "\n";
+  const output = serializedData(data);
+  $('preview').textContent = JSON.stringify(output, null, 2) + "\n";
+  renderValidation(validateData(output));
 }
 
 function setStatus(message) {
@@ -1145,7 +1570,14 @@ function setStatus(message) {
 }
 
 function exportJson() {
-  const json = JSON.stringify(normalizeData(data), null, 2) + "\n";
+  const output = serializedData(data);
+  const validation = validateData(output);
+  renderValidation(validation);
+  if (validation.errors.length) {
+    setStatus("Fix validation errors before exporting.");
+    return;
+  }
+  const json = JSON.stringify(output, null, 2) + "\n";
   const blob = new Blob([json], { type: "application/json" });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
@@ -1157,12 +1589,47 @@ function exportJson() {
   setStatus("JSON exported.");
 }
 
-function copyJson() {
-  const json = JSON.stringify(normalizeData(data), null, 2) + "\n";
-  navigator.clipboard.writeText(json).then(
-    () => setStatus("JSON copied."),
-    () => setStatus("Copy failed. Use the preview box.")
-  );
+async function copyJson() {
+  const output = serializedData(data);
+  const validation = validateData(output);
+  renderValidation(validation);
+  if (validation.errors.length) {
+    setStatus("Fix validation errors before copying.");
+    return;
+  }
+  const json = JSON.stringify(output, null, 2) + "\n";
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(json);
+      setStatus("JSON copied.");
+      return;
+    }
+  } catch (err) {
+    // Fall through to the local-file fallback below.
+  }
+  if (fallbackCopy(json)) {
+    setStatus("JSON copied.");
+  } else {
+    setStatus("Copy unavailable. Select the preview text manually.");
+  }
+}
+
+function fallbackCopy(textValue) {
+  const area = document.createElement('textarea');
+  area.value = textValue;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.left = '-9999px';
+  document.body.appendChild(area);
+  area.select();
+  let copied = false;
+  try {
+    copied = document.execCommand('copy');
+  } catch (err) {
+    copied = false;
+  }
+  area.remove();
+  return copied;
 }
 
 function escapeHtml(s) {

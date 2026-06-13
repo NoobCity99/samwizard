@@ -61,23 +61,34 @@
             </div>
           </aside>
 
-          <section class="academy-map-panel" aria-labelledby="academy-map-title">
-            <div class="academy-map-heading">
-              <div>
-                <p class="check-label">Skill tree</p>
-                <h2 id="academy-map-title">Server Wizardry Path</h2>
+          <div class="academy-map-column">
+            <section class="academy-map-panel" aria-labelledby="academy-map-title">
+              <div class="academy-map-heading">
+                <div>
+                  <p class="check-label">Skill tree</p>
+                  <h2 id="academy-map-title">Server Wizardry Path</h2>
+                </div>
+                <p class="academy-counts" id="academy-counts"></p>
               </div>
-              <p class="academy-counts" id="academy-counts"></p>
-            </div>
-            <div class="academy-map-scroll">
-              <div class="academy-map" id="academy-map">
-                <svg class="academy-connectors" id="academy-connectors" aria-hidden="true"></svg>
-                <img class="academy-map-logo" src="{{ url_for('static', path='/assets/samwizard_logo.png') }}" alt=""
-                  aria-hidden="true">
+              <div class="academy-map-scroll">
+                <div class="academy-map" id="academy-map">
+                  <svg class="academy-connectors" id="academy-connectors" aria-hidden="true"></svg>
+                  <img class="academy-map-logo" src="{{ url_for('static', path='/assets/samwizard_logo.png') }}" alt=""
+                    aria-hidden="true">
+                </div>
               </div>
-            </div>
-            <p class="academy-error" id="academy-error" role="alert"></p>
-          </section>
+              <p class="academy-error" id="academy-error" role="alert"></p>
+            </section>
+
+            <section class="academy-lesson-image-panel" aria-label="Lesson image preview">
+              <img class="academy-lesson-image" id="academy-lesson-image" src="" alt="" hidden>
+              <div class="academy-lesson-image academy-lesson-image-placeholder" id="academy-lesson-image-placeholder"
+                role="img" aria-label="Missing lesson image asset">
+                <span>16:9 image</span>
+                <strong id="academy-lesson-image-filename">Choose a lesson</strong>
+              </div>
+            </section>
+          </div>
         </section>
       </div>
     </section>
@@ -93,8 +104,9 @@
       bridgeInset: 62,
       marginX: 42,
       marginY: 34,
-      mapWidth: 940,
-      mapHeight: 760
+      mapWidth: 900,
+      mapHeight: 600,
+      lessonImageBase: "{{ url_for('static', path='/assets/academy/Lesson_Image') }}"
     };
 
     const slotPositions = {
@@ -323,9 +335,14 @@
           const purpose = document.createElement('p');
           purpose.innerHTML = '<strong>Purpose:</strong> ';
           purpose.append(document.createTextNode(command.purpose));
-          const outcome = document.createElement('p');
-          outcome.innerHTML = '<strong>Outcome:</strong> ';
-          outcome.append(document.createTextNode(command.outcome));
+          const outcome = document.createElement('div');
+          outcome.className = 'academy-command-outcome';
+          const outcomeLabel = document.createElement('strong');
+          outcomeLabel.textContent = 'Outcome:';
+          const outcomeText = document.createElement('pre');
+          outcomeText.className = 'academy-command-output';
+          outcomeText.textContent = command.outcome;
+          outcome.append(outcomeLabel, outcomeText);
           card.append(code, origin, purpose, outcome);
           lesson.appendChild(card);
         });
@@ -361,6 +378,57 @@
       title.textContent = 'Choose a Lesson';
       empty.appendChild(title);
       lesson.appendChild(empty);
+    }
+
+    function lessonImageNumber(skillId) {
+      const index = academy.state.skills.findIndex((skill) => skill.id === skillId);
+      if (index < 0) {
+        return null;
+      }
+      return index + 1;
+    }
+
+    function renderLessonImage(skill) {
+      const image = document.getElementById('academy-lesson-image');
+      const placeholder = document.getElementById('academy-lesson-image-placeholder');
+      const filename = document.getElementById('academy-lesson-image-filename');
+
+      if (!skill) {
+        image.hidden = true;
+        image.removeAttribute('src');
+        placeholder.hidden = false;
+        filename.textContent = 'Choose a lesson';
+        placeholder.setAttribute('aria-label', 'Choose a lesson to show its image');
+        return;
+      }
+
+      const imageNumber = lessonImageNumber(skill.id);
+      if (!imageNumber) {
+        image.hidden = true;
+        image.removeAttribute('src');
+        placeholder.hidden = false;
+        filename.textContent = 'Missing lesson image';
+        placeholder.setAttribute('aria-label', 'Missing lesson image asset');
+        return;
+      }
+
+      const imageFilename = `Lesson_Image${imageNumber}.png`;
+      placeholder.hidden = true;
+      filename.textContent = imageFilename;
+      image.hidden = false;
+      image.alt = `${skill.title} lesson image`;
+      image.onerror = () => {
+        image.hidden = true;
+        image.removeAttribute('src');
+        placeholder.hidden = false;
+        filename.textContent = imageFilename;
+        placeholder.setAttribute('aria-label', `Missing lesson image asset ${imageFilename}`);
+      };
+      image.onload = () => {
+        placeholder.hidden = true;
+        image.hidden = false;
+      };
+      image.src = `${academy.lessonImageBase}${imageNumber}.png`;
     }
 
     function selectInitialSkill() {
@@ -440,6 +508,7 @@
       } else {
         renderEmptyLesson();
       }
+      renderLessonImage(skill);
     }
 
     async function loadAcademy() {

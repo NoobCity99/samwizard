@@ -429,6 +429,7 @@ Basic shape:
 - `lesson.commands`
   - Optional list of command explanations.
   - These are instructional only. The Academy does not execute commands.
+  - Use real line breaks in `outcome` when showing CLI-style output.
 
 - `lesson.exercise`
   - The hands-on task for the learner.
@@ -436,6 +437,32 @@ Basic shape:
 - `lesson.paste_prompt`
   - Text shown above the optional paste box.
   - The paste box is UI-only in this version.
+
+## Multiline Command Output
+
+Use JSON newline escapes for command output that should appear on multiple lines. In the standalone editor, press Enter inside the `Outcome` box. When exported, those line breaks appear in JSON as `\n`.
+
+Example:
+
+```json
+"outcome": "Documents\nDownloads\nSamwizard_Data"
+```
+
+The Academy page renders command outcomes with preserved whitespace, so the learner sees:
+
+```text
+Documents
+Downloads
+Samwizard_Data
+```
+
+Do not use `<br>` in lesson JSON. Lesson text is rendered safely as text, not HTML, so `<br>` will appear literally instead of creating a line break. This is intentional so lesson content cannot inject markup into the page.
+
+For aligned CLI tables, keep the spacing in the raw string:
+
+```json
+"outcome": "Filesystem      Size  Used Avail Use% Mounted on\n/dev/sda2        50G   14G   34G  29% /"
+```
 
 ## Writing Good Intro Lessons
 
@@ -535,6 +562,55 @@ Both currently reference:
 app/static/assets/samwizard_logo.png
 ```
 
+## Map Panel Size And Lesson Image Slot
+
+The map card has a fixed height so it does not stretch downward to match a long Lesson Plan card.
+
+The size value lives near the top of `app/static/styles.css` inside the `:root` block:
+
+```css
+--academy-map-panel-height: 760px;
+```
+
+Increase this value if you want a taller map card. Decrease it if you want more room below the map for future content.
+
+The actual map canvas is still controlled in `app/templates/academy.html` by the JavaScript values:
+
+```js
+mapWidth: 900,
+mapHeight: 600
+```
+
+The CSS variable controls the full visible map card height. The JavaScript values control the internal map canvas size used for hex placement and SVG bridge coordinates. If the internal map canvas is taller than the available card space, the map area scrolls internally.
+
+Below the map card is a separate 16:9 lesson image slot. It changes with the selected lesson.
+
+Lesson image files live in:
+
+```text
+app/static/assets/academy/
+```
+
+Use this exact naming pattern:
+
+```text
+Lesson_Image1.png
+Lesson_Image2.png
+Lesson_Image3.png
+...
+Lesson_Image12.png
+```
+
+The image number follows the lesson order in `app/academy/trees/ubuntu_cli_basics.json`. The first skill in the JSON uses `Lesson_Image1.png`, the second skill uses `Lesson_Image2.png`, and so on. If the selected lesson image file is missing, the Academy page shows a 16:9 placeholder with the expected filename.
+
+The image aspect ratio value also lives in `app/static/styles.css` inside `:root`:
+
+```css
+--academy-lesson-image-aspect: 16 / 9;
+```
+
+To change the image slot shape later, edit that variable. To replace lesson artwork, add or replace the matching `Lesson_ImageN.png` file in `app/static/assets/academy/`.
+
 ## Progress And Reset Behavior
 
 Academy progress is stored outside the lesson JSON.
@@ -624,6 +700,17 @@ Replace the banner:
 
 1. Add a 1920x631 image at `app/static/assets/academy/academy_banner.png`.
 2. Refresh the Academy page.
+
+Replace lesson images:
+
+1. Add 16:9 images named `Lesson_Image1.png` through `Lesson_Image12.png` under `app/static/assets/academy/`.
+2. Keep the numbering aligned with the lesson order in `app/academy/trees/ubuntu_cli_basics.json`.
+3. Refresh the Academy page.
+
+Resize the map card:
+
+1. Edit `--academy-map-panel-height` in `app/static/styles.css`.
+2. Refresh `/academy`.
 
 Change connector color or thickness:
 

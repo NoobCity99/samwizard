@@ -5,12 +5,12 @@
   "skills": [
     {
       "id": "ubuntu-server",
-      "title": "Ubuntu Server Orientation",
+      "title": "What Ubuntu Server Is",
       "icon": {
         "type": "builtin",
         "name": "server"
       },
-      "summary": "How does a \"server\" work compared to a \"Point & Click\" graphics based computer?",
+      "summary": "Learn what a server does and why Ubuntu Server is useful at home.",
       "map": {
         "row": 0,
         "col": 0
@@ -25,61 +25,30 @@
       ],
       "lesson": {
         "intro": [
-          "Your Ubuntu server is now acting like a small appliance in your home.\n\nIt does not need a normal desktop screen like Windows. If you set up your server on a laptop you log-in directly on it, but most of the time, you will control it on your PC through Command Prompt / Powershell Terminal.  Otherwise it's operating \"headless\", executing all the actions & programs you've set up without constant input. The terminal is not “the server.” The terminal is just a text-based control panel.",
-          "You talk to your server using a scripting language callled 'BASH' (Bourne Again SHell). Instead of clicking icons like you do in a graphical interface, you type textual instructions into Bash to navigate files, run applications, and configure system settings. Bash 'prints' results on the screen for you. ",
-          "CORE IDENTITY ELEMENTS: First thing first, lets explore the various identity and location commands. \n\n"
+          "Ubuntu Server is a Linux operating system meant to run services for other computers. It usually has no desktop screen because it is built to stay reliable, quiet, and available.",
+          "For SamWizard, your server can store files, share them to Windows, and later let you reach them securely from outside your home network."
         ],
         "commands": [
           {
-            "command": "hostname",
-            "origin": "\"Host Name\"",
-            "purpose": "Show me this computer’s network name. You set this during Ubuntu install.",
-            "outcome": "Prints server name you designated, This name may sometimes appear in your router, on your network, or in connection instructions."
+            "command": "lsb_release -a",
+            "origin": "Linux Standard Base release",
+            "purpose": "Shows the Ubuntu version installed on the server.",
+            "outcome": "Prints version details such as Ubuntu 24.04 LTS or Ubuntu 26.04 LTS."
           },
           {
-            "command": "whoami",
-            "origin": "\"Who am i\"",
-            "purpose": "An existential command, \"What is the username I'm logged in as\"?",
-            "outcome": "Example : User1"
-          },
-          {
-            "command": "pwd",
-            "origin": "\"Print Working Directory\"",
-            "purpose": "means: “Show me the folder I am currently standing in\"",
-            "outcome": "Prints a file path location:\nexample  '/home/User1'"
-          },
-          {
-            "command": "ls",
-            "origin": "\"List\"",
-            "purpose": "lists the files and folders in your current location. If you are in /home/User1",
-            "outcome": "'ls' shows what is inside:\n/User1\nDocuments\nDownloads\nSamwizard_Data"
-          },
-          {
-            "command": "ip address",
-            "origin": "Internet Protocol Address",
-            "purpose": "“Show me the network addresses assigned to this server.”",
-            "outcome": "Your server may show several network sections. The one you usually care about looks something like:  192.168.1.50"
-          },
-          {
-            "command": "df -h",
-            "origin": "\"Disk Free , Human readable\"",
-            "purpose": "Show me how much disk space is used and free, in a human-readable format.",
-            "outcome": "Ex:\nFilesystem      Size  Used Avail Use% Mounted on\n/dev/sda2       100G   25G   75G  25% /\n/dev/sdb1       2.0T  500G  1.5T  25% /mnt/storage"
-          },
-          {
-            "command": "sudo",
-            "origin": "\"Superuser Do\"",
-            "purpose": "A superuser is an administrator-level account with permission to change important parts of the system. So sudo means: “Run this command with administrator power.”",
-            "outcome": "When you put 'sudo' at the start of a command (ex: sudo apt upgrade) you will be asked for your password to confirm you have the authority to take this action. "
+            "command": "uptime",
+            "origin": "up time",
+            "purpose": "Shows how long the server has been running.",
+            "outcome": "Prints current time, running time, logged-in users, and system load."
           }
         ],
-        "exercise": "Run these commands one by one to reveal your server Identity and Location: \nwhoami\nhostname\nip address\npwd\ndf -h\n\n",
-        "paste_prompt": "Paste your results to keep a snapshot of how it all started right here if you need to come back and reference it. "
+        "exercise": "Run lsb_release -a and uptime from an SSH session or local terminal so you can identify the server and confirm it is running normally.",
+        "paste_prompt": "Optional: paste the Ubuntu version line or uptime output here for your own notes."
       }
     },
     {
       "id": "terminal-basics",
-      "title": "TERMINAL SHERMINAL",
+      "title": "What the Terminal Is",
       "icon": {
         "type": "builtin",
         "name": "terminal"

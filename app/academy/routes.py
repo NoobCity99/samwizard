@@ -88,4 +88,3 @@ def reset_academy_progress(payload: dict[str, str] | None = Body(default=None)):
     except AcademyProgressError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return JSONResponse(serialize_state(tree, progress))
-

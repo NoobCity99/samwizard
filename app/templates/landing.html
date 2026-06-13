@@ -49,21 +49,33 @@
         {{ asset_slot(assets.banner, "landing-banner") }}
 
         <section class="landing-section" aria-labelledby="about-samwizard">
-          <h2 id="about-samwizard">More about SamWizard</h2>
+          <h2 id="about-samwizard">What does SamWizard do?</h2>
           <div class="landing-feature-grid">
             {{ asset_slot(assets.samba_intro, "landing-feature-media") }}
             <div class="landing-copy-panel">
-              <strong>Placeholder explainer headline</strong>
+              <strong>It will Setup Your SAMBA Share Drive</strong>
               <p>
-                Placeholder text for the first SamWizard explainer block. This area can describe the main problem the
-                app solves for new Ubuntu Server users.
+                - SAMBA is a free, open-source software suite that builds a bridge for Windows & Mac machines to
+                easily
+                access directories hosted on a Linux server (often used for Network Attached Storage, or NAS).<br>
+
+                - For first-time Linux users this process can be confusing & intimidating. You just want cloud storage
+                at
+                home dagnabbit! Why all this typing and code, no icons to click on?!<br>
+
+                - SamWizard is here to build that bridge with you, guiding you with a familiar interface.
+
               </p>
             </div>
             <div class="landing-copy-panel">
-              <strong>Placeholder server basics headline</strong>
+              <strong>Setting up TailScale access</strong>
               <p>
-                Placeholder text for the second explainer block. This area can explain that SamWizard guides users
-                through setup without requiring Linux command-line knowledge.
+                - Normally, SAMBA only works if your devices are plugged into the exact same home or office router.<br>
+                - Without Tailscale, accessing a SAMBA server from outside your house is incredibly dangerous. It
+                requires opening holes in your home router (port forwarding), which invites hackers to attack your
+                server.<br>
+                - Tailscale creates a secure, private network (your 'Tailnet') allowing only devices YOU designate
+                to access your server from anywhere.
               </p>
             </div>
             {{ asset_slot(assets.server_intro, "landing-feature-media") }}
@@ -86,7 +98,7 @@
               </p>
             </article>
             <article class="landing-path-card">
-              <a class="landing-path-button" href="/academy">SamWizard Academy</a>
+              <a class="landing-path-button" href="/academy">STEP 3: SamWizard Academy</a>
               <p>
                 Learn beginner-friendly Ubuntu Server and command-line basics through a guided hex skill tree.
               </p>
