@@ -201,10 +201,10 @@ class SystemCheckRouteTests(unittest.TestCase):
         body = normalized_body(response)
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Choose a path", body)
-        self.assertIn("SAMBA", body)
-        self.assertIn("SMB + Tailscale", body)
-        self.assertIn("CLI Tutorial", body)
+        self.assertIn("Your Path to Wizardry", body)
+        self.assertIn("STEP 1: Install SAMBA", body)
+        self.assertIn("STEP 2: Install TAILSCALE", body)
+        self.assertIn("SamWizard Academy", body)
         self.assertNotIn("Wizard progress", body)
         self.assertNotIn("Step 1 of", body)
 
@@ -214,8 +214,8 @@ class SystemCheckRouteTests(unittest.TestCase):
 
         self.assertIn('href="/samba"', body)
         self.assertIn('href="/tailscale"', body)
-        self.assertIn("disabled>CLI Tutorial", body)
-        self.assertNotIn('href="/cli-tutorial"', body)
+        self.assertIn('href="/academy"', body)
+        self.assertNotIn("disabled>CLI Tutorial", body)
 
     def test_samba_route_renders_existing_welcome_step(self):
         response = welcome(FakeRequest())

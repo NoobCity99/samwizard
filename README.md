@@ -52,6 +52,20 @@ responses from the current browser session. Passwords and secret input are
 hidden as `********`, and the log can be cleared from the UI. Logs are
 session-only and disappear when the app process restarts.
 
+## SamWizard Academy
+
+The landing page links to `/academy`, a beginner-friendly Ubuntu Server and
+command-line learning map. Academy progress is stored as JSON in:
+
+```text
+${SAMWIZARD_STATE_DIR}/academy-progress.json
+```
+
+The installer sets `SAMWIZARD_STATE_DIR=/var/lib/samwizard`. Local development
+uses `.samwizard-state` unless the environment variable is overridden. Academy
+lessons live in `app/academy/trees/ubuntu_cli_basics.json`, so lesson text,
+unlock links, and hex map positions can be edited without changing route code.
+
 ## Update the logo
 
 The header logo is served from:

@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.academy.routes import router as academy_router
 from app.apply_jobs import (
     STATUS_FAILED,
     STATUS_PENDING,
@@ -53,6 +54,7 @@ from app.wifi_actions import apply_wifi_setup
 app = FastAPI(title="SamWizard")
 app.add_middleware(SessionMiddleware, secret_key=session_secret_key())
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
+app.include_router(academy_router)
 
 templates = Jinja2Templates(directory="app/templates")
 

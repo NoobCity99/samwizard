@@ -1,0 +1,1206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SamWizard Academy JSON Editor</title>
+  <style>
+    :root {
+      --bg: #0b1020;
+      --panel: #121a33;
+      --panel-2: #182241;
+      --text: #f5f7fb;
+      --muted: #aeb8d4;
+      --line: rgba(255,255,255,.14);
+      --accent: #38bdf8;
+      --accent-2: #f97316;
+      --danger: #fb7185;
+      --ok: #34d399;
+      --input: #091127;
+      --shadow: 0 18px 50px rgba(0,0,0,.35);
+      --radius: 16px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(56,189,248,.18), transparent 36rem),
+        radial-gradient(circle at top right, rgba(249,115,22,.12), transparent 32rem),
+        var(--bg);
+      min-height: 100vh;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(12px);
+      background: rgba(11,16,32,.86);
+      border-bottom: 1px solid var(--line);
+    }
+    .topbar {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 16px 20px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 16px;
+      align-items: center;
+    }
+    h1 {
+      margin: 0;
+      font-size: 1.15rem;
+      letter-spacing: .02em;
+    }
+    .subtitle {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: .88rem;
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    button, .file-label {
+      border: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: .88rem;
+    }
+    button:hover, .file-label:hover { border-color: var(--accent); }
+    .primary {
+      background: linear-gradient(135deg, var(--accent), #2563eb);
+      border-color: transparent;
+      color: white;
+    }
+    .warn {
+      background: linear-gradient(135deg, var(--accent-2), #ea580c);
+      border-color: transparent;
+      color: white;
+    }
+    .danger {
+      background: rgba(251,113,133,.13);
+      border-color: rgba(251,113,133,.5);
+      color: #fecdd3;
+    }
+    input[type=file] { display: none; }
+    main {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      grid-template-columns: 330px minmax(0, 1fr);
+      gap: 20px;
+    }
+    aside {
+      position: sticky;
+      top: 86px;
+      height: calc(100vh - 106px);
+      overflow: auto;
+      background: rgba(18,26,51,.82);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+    .panel {
+      background: rgba(18,26,51,.82);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      margin-bottom: 20px;
+    }
+    .panel h2 {
+      margin: 0 0 14px;
+      font-size: 1rem;
+      letter-spacing: .02em;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: .78rem;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    input, textarea, select {
+      width: 100%;
+      background: var(--input);
+      border: 1px solid var(--line);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 11px;
+      font: inherit;
+      line-height: 1.35;
+    }
+    textarea { min-height: 92px; resize: vertical; }
+    textarea.short { min-height: 58px; }
+    input:focus, textarea:focus, select:focus {
+      outline: 2px solid rgba(56,189,248,.34);
+      border-color: var(--accent);
+    }
+    .skill-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .skill-tab {
+      width: 100%;
+      text-align: left;
+      border-radius: 12px;
+      padding: 10px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 10px;
+      align-items: center;
+      background: rgba(9,17,39,.85);
+    }
+    .skill-tab.active {
+      border-color: var(--accent);
+      background: rgba(56,189,248,.13);
+    }
+    .badge {
+      color: #00111c;
+      background: var(--accent);
+      border-radius: 999px;
+      min-width: 28px;
+      height: 28px;
+      display: inline-grid;
+      place-items: center;
+      font-weight: 900;
+      font-size: .78rem;
+    }
+    .mini {
+      color: var(--muted);
+      font-size: .78rem;
+      white-space: nowrap;
+    }
+    .row-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .section-title {
+      display:flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items:center;
+      border-top: 1px solid var(--line);
+      padding-top: 16px;
+      margin-top: 16px;
+    }
+    .section-title h3 {
+      margin: 0;
+      font-size: .95rem;
+    }
+    .array-item, .command-card {
+      border: 1px solid var(--line);
+      background: rgba(9,17,39,.42);
+      border-radius: 14px;
+      padding: 14px;
+      margin-top: 12px;
+    }
+    .command-card {
+      display: grid;
+      gap: 12px;
+    }
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+    .hint {
+      color: var(--muted);
+      font-size: .86rem;
+      line-height: 1.45;
+    }
+    .status {
+      color: var(--ok);
+      font-size: .86rem;
+      min-height: 1.2em;
+      margin-top: 10px;
+    }
+    .preview {
+      white-space: pre;
+      overflow: auto;
+      max-height: 420px;
+      background: #050917;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      font-size: .82rem;
+      line-height: 1.45;
+    }
+    .small-btn {
+      padding: 7px 10px;
+      font-size: .78rem;
+    }
+    .checkline {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 0 0;
+    }
+    .checkline input { width: auto; }
+    @media (max-width: 980px) {
+      main { grid-template-columns: 1fr; }
+      aside { position: static; height: auto; }
+      .grid, .grid-3 { grid-template-columns: 1fr; }
+      .topbar { grid-template-columns: 1fr; }
+      .actions { justify-content: flex-start; }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="topbar">
+    <div>
+      <h1>SamWizard Academy JSON Editor</h1>
+      <div class="subtitle">Edit the lesson plan in fields, then export a matching 2-space formatted <span class="mono">ubuntu_cli_basics.json</span>.</div>
+    </div>
+    <div class="actions">
+      <label class="file-label" for="importFile">Import JSON</label>
+      <input id="importFile" type="file" accept=".json,application/json">
+      <button id="copyBtn">Copy JSON</button>
+      <button id="downloadBtn" class="primary">Export JSON</button>
+      <button id="resetBtn" class="danger">Reset</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <aside>
+    <div class="panel" style="margin-bottom:12px;">
+      <h2>Course</h2>
+      <div class="hint">Use the lesson list to jump between the 12 skill-tree nodes. Changes save in the browser while this page is open.</div>
+      <div id="status" class="status"></div>
+    </div>
+    <div id="skillList" class="skill-list"></div>
+  </aside>
+
+  <section>
+    <div class="panel">
+      <h2>Top-Level Course Data</h2>
+      <div class="grid">
+        <div>
+          <label for="courseId">Course ID</label>
+          <input id="courseId" class="mono">
+        </div>
+        <div>
+          <label for="courseTitle">Course Title</label>
+          <input id="courseTitle">
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <label for="courseSummary">Course Summary</label>
+        <textarea id="courseSummary" class="short"></textarea>
+      </div>
+    </div>
+
+    <div class="panel" id="editor"></div>
+
+    <div class="panel">
+      <h2>JSON Preview</h2>
+      <div class="hint">This preview uses <span class="mono">JSON.stringify(data, null, 2)</span> and keeps the same key order as the source file.</div>
+      <pre id="preview" class="preview"></pre>
+    </div>
+  </section>
+</main>
+
+<script id="initial-json" type="application/json">
+{
+  "id": "ubuntu_cli_basics",
+  "title": "Ubuntu Server & CLI Basics",
+  "summary": "A beginner-friendly path for understanding your Ubuntu Server, terminal commands, Samba shares, and Tailscale access.",
+  "skills": [
+    {
+      "id": "ubuntu-server",
+      "title": "What Ubuntu Server Is",
+      "icon": {
+        "type": "builtin",
+        "name": "server"
+      },
+      "summary": "Learn what a server does and why Ubuntu Server is useful at home.",
+      "map": {
+        "row": 0,
+        "col": 0
+      },
+      "layout": {
+        "slot": "top-left",
+        "group": "basics"
+      },
+      "starts_unlocked": true,
+      "unlocks": [
+        "linux-filesystem"
+      ],
+      "lesson": {
+        "intro": [
+          "Ubuntu Server is a Linux operating system meant to run services for other computers. It usually has no desktop screen because it is built to stay reliable, quiet, and available.",
+          "For SamWizard, your server can store files, share them to Windows, and later let you reach them securely from outside your home network."
+        ],
+        "commands": [
+          {
+            "command": "lsb_release -a",
+            "origin": "Linux Standard Base release",
+            "purpose": "Shows the Ubuntu version installed on the server.",
+            "outcome": "Prints version details such as Ubuntu 24.04 LTS or Ubuntu 26.04 LTS."
+          },
+          {
+            "command": "uptime",
+            "origin": "up time",
+            "purpose": "Shows how long the server has been running.",
+            "outcome": "Prints current time, running time, logged-in users, and system load."
+          }
+        ],
+        "exercise": "Run lsb_release -a and uptime from an SSH session or local terminal so you can identify the server and confirm it is running normally.",
+        "paste_prompt": "Optional: paste the Ubuntu version line or uptime output here for your own notes."
+      }
+    },
+    {
+      "id": "terminal-basics",
+      "title": "What the Terminal Is",
+      "icon": {
+        "type": "builtin",
+        "name": "terminal"
+      },
+      "summary": "Understand prompts, commands, output, and why the terminal is powerful.",
+      "map": {
+        "row": 0,
+        "col": 2
+      },
+      "layout": {
+        "slot": "top-center",
+        "group": "basics"
+      },
+      "starts_unlocked": true,
+      "unlocks": [
+        "navigation-basics",
+        "reading-output"
+      ],
+      "lesson": {
+        "intro": [
+          "The terminal is a text conversation with your server. You type a command, press Enter, and read the result.",
+          "A command is not magic. It is usually a small program with a short name, options, and sometimes a target such as a file or folder."
+        ],
+        "commands": [
+          {
+            "command": "pwd",
+            "origin": "print working directory",
+            "purpose": "Shows where you are in the server's folder tree.",
+            "outcome": "Prints one path, such as /home/sam."
+          },
+          {
+            "command": "whoami",
+            "origin": "who am I",
+            "purpose": "Shows the Linux username currently running commands.",
+            "outcome": "Prints a username."
+          }
+        ],
+        "exercise": "Run pwd and whoami. Notice that one command describes location and one describes identity.",
+        "paste_prompt": "Optional: paste the two short outputs here."
+      }
+    },
+    {
+      "id": "server-identity",
+      "title": "Server Identity",
+      "icon": {
+        "type": "builtin",
+        "name": "identity"
+      },
+      "summary": "Find the hostname, IP address, and username that identify your server.",
+      "map": {
+        "row": 0,
+        "col": 4
+      },
+      "layout": {
+        "slot": "top-right",
+        "group": "basics"
+      },
+      "starts_unlocked": true,
+      "unlocks": [
+        "networking-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Your server has several names depending on who is asking. The hostname is its Linux name, the IP address is its network address, and your username is the account you log in with.",
+          "Knowing these three pieces makes SSH, Samba paths, and Tailscale addresses easier to understand."
+        ],
+        "commands": [
+          {
+            "command": "hostname",
+            "origin": "host name",
+            "purpose": "Shows the server's local computer name.",
+            "outcome": "Prints a short name such as fileserver."
+          },
+          {
+            "command": "hostname -I",
+            "origin": "host name, all IP addresses",
+            "purpose": "Shows IP addresses assigned to the server.",
+            "outcome": "Prints one or more addresses such as 192.168.1.50."
+          }
+        ],
+        "exercise": "Run hostname, hostname -I, and whoami. Write down the values you would use to connect from another computer.",
+        "paste_prompt": "Optional: paste the hostname and first IP address here."
+      }
+    },
+    {
+      "id": "linux-filesystem",
+      "title": "Files And Folders",
+      "icon": {
+        "type": "builtin",
+        "name": "folder"
+      },
+      "summary": "Learn how Linux organizes paths such as /home, /srv, and /mnt.",
+      "map": {
+        "row": 1,
+        "col": 1
+      },
+      "layout": {
+        "slot": "upper-left",
+        "group": "basics"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "drives-and-mounts"
+      ],
+      "lesson": {
+        "intro": [
+          "Linux uses one big folder tree that starts at /. Drives, user folders, services, and system files all appear somewhere under that root.",
+          "SamWizard uses folders under /srv because /srv is commonly used for data served to other computers."
+        ],
+        "commands": [
+          {
+            "command": "ls /",
+            "origin": "list",
+            "purpose": "Lists the top-level folders on the server.",
+            "outcome": "Shows names such as home, etc, srv, var, and usr."
+          },
+          {
+            "command": "ls /srv",
+            "origin": "list / service data",
+            "purpose": "Shows service data folders if they exist.",
+            "outcome": "May show samba or other service folders."
+          }
+        ],
+        "exercise": "Run ls / and look for home, srv, and mnt. These folder names will appear often in server guides.",
+        "paste_prompt": "Optional: paste the folder names you recognized."
+      }
+    },
+    {
+      "id": "navigation-basics",
+      "title": "Navigation Basics",
+      "icon": {
+        "type": "builtin",
+        "name": "compass"
+      },
+      "summary": "Move around safely with pwd, ls, and cd.",
+      "map": {
+        "row": 2,
+        "col": 0
+      },
+      "layout": {
+        "slot": "middle-left",
+        "group": "basics"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "permissions-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Navigation commands let you inspect the server without changing it. They are safe first commands because they mostly read information.",
+          "Think of pwd as your current map pin, ls as looking around, and cd as walking into another folder."
+        ],
+        "commands": [
+          {
+            "command": "ls -la",
+            "origin": "list, long, all",
+            "purpose": "Shows visible and hidden files with details.",
+            "outcome": "Prints permissions, owners, sizes, dates, and names."
+          },
+          {
+            "command": "cd /srv",
+            "origin": "change directory",
+            "purpose": "Moves your terminal location to /srv.",
+            "outcome": "Usually prints nothing if it worked."
+          }
+        ],
+        "exercise": "Run pwd, cd /srv, pwd, and ls -la. Notice how the second pwd changes.",
+        "paste_prompt": "Optional: paste the final pwd output."
+      }
+    },
+    {
+      "id": "reading-output",
+      "title": "Reading Output",
+      "icon": {
+        "type": "builtin",
+        "name": "document"
+      },
+      "summary": "Learn how to read command output, empty success, and error messages.",
+      "map": {
+        "row": 2,
+        "col": 2
+      },
+      "layout": {
+        "slot": "middle-right",
+        "group": "basics"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "services-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Some commands print useful information. Some commands print nothing when they succeed. Error messages are clues, not failures of learning.",
+          "Look for the first plain-English message, file path, or permission note before searching for help."
+        ],
+        "commands": [
+          {
+            "command": "ls /not-a-real-folder",
+            "origin": "list a missing path",
+            "purpose": "Creates a harmless error so you can practice reading it.",
+            "outcome": "Prints a message that the folder cannot be accessed because it does not exist."
+          },
+          {
+            "command": "echo hello",
+            "origin": "echo",
+            "purpose": "Prints text back to the terminal.",
+            "outcome": "Prints hello."
+          }
+        ],
+        "exercise": "Run echo hello, then run ls /not-a-real-folder. Compare normal output with an error message.",
+        "paste_prompt": "Optional: paste the error line you saw."
+      }
+    },
+    {
+      "id": "networking-basics",
+      "title": "Networking Basics",
+      "icon": {
+        "type": "builtin",
+        "name": "network"
+      },
+      "summary": "Connect IP addresses, ports, local networks, and remote access.",
+      "map": {
+        "row": 1,
+        "col": 5
+      },
+      "layout": {
+        "slot": "upper-right",
+        "group": "networking"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "tailscale-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Networking is how computers find each other. An IP address identifies a device. A port identifies a service on that device.",
+          "Samba, SSH, the SamWizard web app, and Tailscale all use networking, but each has a different job."
+        ],
+        "commands": [
+          {
+            "command": "ip addr",
+            "origin": "internet protocol address",
+            "purpose": "Shows network interfaces and addresses.",
+            "outcome": "Prints interface names and IP addresses."
+          },
+          {
+            "command": "ss -tulpn",
+            "origin": "socket statistics",
+            "purpose": "Shows listening network services.",
+            "outcome": "Prints protocols, ports, and process names when allowed."
+          }
+        ],
+        "exercise": "Run hostname -I and compare it with the address SamWizard shows in setup screens.",
+        "paste_prompt": "Optional: paste the first local IP address."
+      }
+    },
+    {
+      "id": "drives-and-mounts",
+      "title": "Drives And Mounts",
+      "icon": {
+        "type": "builtin",
+        "name": "drive"
+      },
+      "summary": "Understand why Linux mounts drives into folders.",
+      "map": {
+        "row": 3,
+        "col": 1
+      },
+      "layout": {
+        "slot": "far-left",
+        "group": "storage"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "samba-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Linux does not show drives as C: or D:. A drive becomes usable when it is mounted into a folder.",
+          "SamWizard mounts selected drives under /srv/samba/drives so Samba can share a stable folder path."
+        ],
+        "commands": [
+          {
+            "command": "lsblk",
+            "origin": "list block devices",
+            "purpose": "Shows disks, partitions, sizes, and mount points.",
+            "outcome": "Prints a tree of storage devices."
+          },
+          {
+            "command": "findmnt",
+            "origin": "find mounts",
+            "purpose": "Shows mounted filesystems.",
+            "outcome": "Prints target folders and source devices."
+          }
+        ],
+        "exercise": "Run lsblk and findmnt. Look for the MOUNTPOINTS or TARGET column.",
+        "paste_prompt": "Optional: paste one drive line that includes a mount point."
+      }
+    },
+    {
+      "id": "permissions-basics",
+      "title": "Permissions",
+      "icon": {
+        "type": "builtin",
+        "name": "lock"
+      },
+      "summary": "Read owner, group, and permission letters without panic.",
+      "map": {
+        "row": 3,
+        "col": 3
+      },
+      "layout": {
+        "slot": "lower-left",
+        "group": "basics"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "services-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Permissions decide who can read, write, or run files. The letters r, w, and x mean read, write, and execute.",
+          "When Samba shares a folder, Linux permissions still matter underneath the Windows share."
+        ],
+        "commands": [
+          {
+            "command": "ls -ld /srv",
+            "origin": "list long directory",
+            "purpose": "Shows permissions and ownership for /srv itself.",
+            "outcome": "Prints one detailed line."
+          },
+          {
+            "command": "id",
+            "origin": "identity",
+            "purpose": "Shows your user id and group memberships.",
+            "outcome": "Prints uid, gid, and groups."
+          }
+        ],
+        "exercise": "Run ls -ld /srv and id. Find the owner and group names in the output.",
+        "paste_prompt": "Optional: paste the permission letters from the first column."
+      }
+    },
+    {
+      "id": "services-basics",
+      "title": "Services",
+      "icon": {
+        "type": "builtin",
+        "name": "gear"
+      },
+      "summary": "Learn how background services run, stop, and report status.",
+      "map": {
+        "row": 4,
+        "col": 2
+      },
+      "layout": {
+        "slot": "lower-center",
+        "group": "services"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "samba-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "A service is a program meant to run in the background. Web apps, file sharing, SSH, and Tailscale are usually services.",
+          "On Ubuntu Server, systemctl is the common tool for checking service status."
+        ],
+        "commands": [
+          {
+            "command": "systemctl status ssh",
+            "origin": "system control status",
+            "purpose": "Shows whether the SSH service is active.",
+            "outcome": "Prints service state, recent logs, and process information."
+          },
+          {
+            "command": "systemctl --type=service --state=running",
+            "origin": "system control running services",
+            "purpose": "Lists currently running services.",
+            "outcome": "Prints a table of active services."
+          }
+        ],
+        "exercise": "Run systemctl status ssh. Press q if the output opens in a pager.",
+        "paste_prompt": "Optional: paste the Active line."
+      }
+    },
+    {
+      "id": "samba-basics",
+      "title": "How Samba Works",
+      "icon": {
+        "type": "builtin",
+        "name": "share"
+      },
+      "summary": "Connect Linux folders to Windows file sharing.",
+      "map": {
+        "row": 5,
+        "col": 1
+      },
+      "layout": {
+        "slot": "bottom-center",
+        "group": "sharing"
+      },
+      "starts_unlocked": false,
+      "unlocks": [],
+      "lesson": {
+        "intro": [
+          "Samba lets a Linux server speak the Windows file sharing language. Windows sees a network path, while Linux still stores the files in a normal folder.",
+          "A Samba share combines a folder path, a share name, a service, and user access rules."
+        ],
+        "commands": [
+          {
+            "command": "testparm -s",
+            "origin": "test parameters",
+            "purpose": "Checks Samba configuration and prints a summarized version.",
+            "outcome": "Prints Samba share settings if Samba is installed."
+          },
+          {
+            "command": "systemctl status smbd",
+            "origin": "Samba daemon status",
+            "purpose": "Shows whether the Samba file sharing service is running.",
+            "outcome": "Prints active, inactive, or error status details."
+          }
+        ],
+        "exercise": "If Samba is installed, run systemctl status smbd and look for the Active line.",
+        "paste_prompt": "Optional: paste the Active line or write 'not installed yet'."
+      }
+    },
+    {
+      "id": "tailscale-basics",
+      "title": "How Tailscale Works",
+      "icon": {
+        "type": "builtin",
+        "name": "link"
+      },
+      "summary": "Understand private remote access without opening public file sharing.",
+      "map": {
+        "row": 5,
+        "col": 5
+      },
+      "layout": {
+        "slot": "far-right",
+        "group": "networking"
+      },
+      "starts_unlocked": false,
+      "unlocks": [],
+      "lesson": {
+        "intro": [
+          "Tailscale creates a private network between your devices. It gives each device a private Tailscale IP address that works even when you are away from home.",
+          "SamWizard uses Tailscale to help reach your Samba share remotely without turning your Samba server into a public internet service."
+        ],
+        "commands": [
+          {
+            "command": "tailscale status",
+            "origin": "Tailscale status",
+            "purpose": "Shows devices connected to your Tailscale network.",
+            "outcome": "Prints device names, Tailscale IPs, and connection status."
+          },
+          {
+            "command": "tailscale ip -4",
+            "origin": "Tailscale IPv4 address",
+            "purpose": "Shows this server's Tailscale IPv4 address.",
+            "outcome": "Prints an address that usually starts with 100."
+          }
+        ],
+        "exercise": "If Tailscale is installed, run tailscale ip -4 and compare it with the remote address shown by SamWizard.",
+        "paste_prompt": "Optional: paste the Tailscale IP or write 'not installed yet'."
+      }
+    }
+  ]
+}
+</script>
+
+<script>
+const originalData = JSON.parse(document.getElementById('initial-json').textContent);
+let data = deepClone(originalData);
+let selectedIndex = 0;
+
+const $ = (id) => document.getElementById(id);
+function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+function orderedSkill(skill) {
+  return {
+    id: skill.id || "",
+    title: skill.title || "",
+    icon: {
+      type: skill.icon?.type || "builtin",
+      name: skill.icon?.name || ""
+    },
+    summary: skill.summary || "",
+    map: {
+      row: Number(skill.map?.row ?? 0),
+      col: Number(skill.map?.col ?? 0)
+    },
+    layout: {
+      slot: skill.layout?.slot || "",
+      group: skill.layout?.group || ""
+    },
+    starts_unlocked: Boolean(skill.starts_unlocked),
+    unlocks: Array.isArray(skill.unlocks) ? skill.unlocks : [],
+    lesson: {
+      intro: Array.isArray(skill.lesson?.intro) ? skill.lesson.intro : [],
+      commands: Array.isArray(skill.lesson?.commands) ? skill.lesson.commands.map(c => ({
+        command: c.command || "",
+        origin: c.origin || "",
+        purpose: c.purpose || "",
+        outcome: c.outcome || ""
+      })) : [],
+      exercise: skill.lesson?.exercise || "",
+      paste_prompt: skill.lesson?.paste_prompt || ""
+    }
+  };
+}
+
+function normalizeData(input) {
+  return {
+    id: input.id || "",
+    title: input.title || "",
+    summary: input.summary || "",
+    skills: Array.isArray(input.skills) ? input.skills.map(orderedSkill) : []
+  };
+}
+
+function renderAll() {
+  data = normalizeData(data);
+  selectedIndex = Math.min(selectedIndex, Math.max(0, data.skills.length - 1));
+  renderCourse();
+  renderSkillList();
+  renderEditor();
+  renderPreview();
+}
+
+function renderCourse() {
+  $('courseId').value = data.id;
+  $('courseTitle').value = data.title;
+  $('courseSummary').value = data.summary;
+}
+
+function renderSkillList() {
+  const box = $('skillList');
+  box.innerHTML = "";
+  data.skills.forEach((skill, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'skill-tab' + (i === selectedIndex ? ' active' : '');
+    btn.innerHTML = `
+      <span class="badge">${i + 1}</span>
+      <span>
+        <strong>${escapeHtml(skill.title || skill.id || "Untitled")}</strong><br>
+        <span class="mini mono">${escapeHtml(skill.id || "")}</span>
+      </span>
+      <span class="mini">${skill.starts_unlocked ? "open" : "locked"}</span>`;
+    btn.onclick = () => { selectedIndex = i; renderAll(); };
+    box.appendChild(btn);
+  });
+}
+
+function renderEditor() {
+  const skill = data.skills[selectedIndex];
+  if (!skill) {
+    $('editor').innerHTML = '<h2>No lesson selected</h2>';
+    return;
+  }
+
+  $('editor').innerHTML = `
+    <h2>Lesson ${selectedIndex + 1}: ${escapeHtml(skill.title || "")}</h2>
+
+    <div class="grid">
+      <div>
+        <label>Skill ID</label>
+        <input id="skillId" class="mono" value="${attr(skill.id)}">
+      </div>
+      <div>
+        <label>Skill Title</label>
+        <input id="skillTitle" value="${attr(skill.title)}">
+      </div>
+    </div>
+
+    <div style="margin-top:14px;">
+      <label>Skill Summary</label>
+      <textarea id="skillSummary" class="short">${text(skill.summary)}</textarea>
+    </div>
+
+    <div class="grid-3" style="margin-top:14px;">
+      <div>
+        <label>Icon Type</label>
+        <input id="iconType" class="mono" value="${attr(skill.icon.type)}">
+      </div>
+      <div>
+        <label>Icon Name</label>
+        <input id="iconName" class="mono" value="${attr(skill.icon.name)}">
+      </div>
+      <div class="checkline">
+        <input id="startsUnlocked" type="checkbox" ${skill.starts_unlocked ? "checked" : ""}>
+        <label for="startsUnlocked" style="margin:0;">Starts Unlocked</label>
+      </div>
+    </div>
+
+    <div class="grid-3" style="margin-top:14px;">
+      <div>
+        <label>Map Row</label>
+        <input id="mapRow" type="number" value="${attr(skill.map.row)}">
+      </div>
+      <div>
+        <label>Map Column</label>
+        <input id="mapCol" type="number" value="${attr(skill.map.col)}">
+      </div>
+      <div>
+        <label>Layout Slot</label>
+        <input id="layoutSlot" class="mono" value="${attr(skill.layout.slot)}">
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:14px;">
+      <div>
+        <label>Layout Group</label>
+        <input id="layoutGroup" class="mono" value="${attr(skill.layout.group)}">
+      </div>
+      <div>
+        <label>Unlocks</label>
+        <input id="unlocks" class="mono" value="${attr(skill.unlocks.join(', '))}">
+      </div>
+    </div>
+
+    <div class="section-title">
+      <h3>Intro Paragraphs</h3>
+      <button id="addIntro" class="small-btn">Add Paragraph</button>
+    </div>
+    <div id="introList"></div>
+
+    <div class="section-title">
+      <h3>Commands</h3>
+      <button id="addCommand" class="small-btn">Add Command</button>
+    </div>
+    <div id="commandList"></div>
+
+    <div class="section-title"><h3>Exercise</h3></div>
+    <div style="margin-top:12px;">
+      <label>Exercise Text</label>
+      <textarea id="exercise">${text(skill.lesson.exercise)}</textarea>
+    </div>
+    <div style="margin-top:12px;">
+      <label>Paste Prompt</label>
+      <textarea id="pastePrompt" class="short">${text(skill.lesson.paste_prompt)}</textarea>
+    </div>
+  `;
+
+  bindScalarInputs(skill);
+  renderIntroList(skill);
+  renderCommandList(skill);
+
+  $('addIntro').onclick = () => {
+    skill.lesson.intro.push("");
+    renderAll();
+  };
+  $('addCommand').onclick = () => {
+    skill.lesson.commands.push({ command: "", origin: "", purpose: "", outcome: "" });
+    renderAll();
+  };
+}
+
+function bindScalarInputs(skill) {
+  const bind = (id, fn) => $(id).addEventListener('input', () => { fn($(id).value); renderPreview(); renderSkillList(); });
+  bind('skillId', v => skill.id = v);
+  bind('skillTitle', v => skill.title = v);
+  bind('skillSummary', v => skill.summary = v);
+  bind('iconType', v => skill.icon.type = v);
+  bind('iconName', v => skill.icon.name = v);
+  bind('mapRow', v => skill.map.row = Number(v || 0));
+  bind('mapCol', v => skill.map.col = Number(v || 0));
+  bind('layoutSlot', v => skill.layout.slot = v);
+  bind('layoutGroup', v => skill.layout.group = v);
+  bind('unlocks', v => skill.unlocks = v.split(',').map(s => s.trim()).filter(Boolean));
+  bind('exercise', v => skill.lesson.exercise = v);
+  bind('pastePrompt', v => skill.lesson.paste_prompt = v);
+  $('startsUnlocked').addEventListener('change', () => {
+    skill.starts_unlocked = $('startsUnlocked').checked;
+    renderPreview();
+    renderSkillList();
+  });
+}
+
+function renderIntroList(skill) {
+  const box = $('introList');
+  box.innerHTML = "";
+  skill.lesson.intro.forEach((paragraph, i) => {
+    const item = document.createElement('div');
+    item.className = 'array-item';
+    item.innerHTML = `
+      <label>Intro Paragraph ${i + 1}</label>
+      <textarea class="introText">${text(paragraph)}</textarea>
+      <div class="row-actions">
+        <button class="small-btn move-up">Move Up</button>
+        <button class="small-btn move-down">Move Down</button>
+        <button class="small-btn danger remove">Remove</button>
+      </div>`;
+    item.querySelector('.introText').addEventListener('input', e => {
+      skill.lesson.intro[i] = e.target.value;
+      renderPreview();
+    });
+    item.querySelector('.remove').onclick = () => { skill.lesson.intro.splice(i, 1); renderAll(); };
+    item.querySelector('.move-up').onclick = () => { move(skill.lesson.intro, i, i-1); renderAll(); };
+    item.querySelector('.move-down').onclick = () => { move(skill.lesson.intro, i, i+1); renderAll(); };
+    box.appendChild(item);
+  });
+}
+
+function renderCommandList(skill) {
+  const box = $('commandList');
+  box.innerHTML = "";
+  skill.lesson.commands.forEach((cmd, i) => {
+    const item = document.createElement('div');
+    item.className = 'command-card';
+    item.innerHTML = `
+      <div class="grid">
+        <div>
+          <label>Command ${i + 1}</label>
+          <input class="cmd-command mono" value="${attr(cmd.command)}">
+        </div>
+        <div>
+          <label>Origin</label>
+          <input class="cmd-origin" value="${attr(cmd.origin)}">
+        </div>
+      </div>
+      <div>
+        <label>Purpose</label>
+        <textarea class="cmd-purpose short">${text(cmd.purpose)}</textarea>
+      </div>
+      <div>
+        <label>Outcome</label>
+        <textarea class="cmd-outcome short">${text(cmd.outcome)}</textarea>
+      </div>
+      <div class="row-actions">
+        <button class="small-btn move-up">Move Up</button>
+        <button class="small-btn move-down">Move Down</button>
+        <button class="small-btn danger remove">Remove</button>
+      </div>`;
+    item.querySelector('.cmd-command').addEventListener('input', e => { cmd.command = e.target.value; renderPreview(); });
+    item.querySelector('.cmd-origin').addEventListener('input', e => { cmd.origin = e.target.value; renderPreview(); });
+    item.querySelector('.cmd-purpose').addEventListener('input', e => { cmd.purpose = e.target.value; renderPreview(); });
+    item.querySelector('.cmd-outcome').addEventListener('input', e => { cmd.outcome = e.target.value; renderPreview(); });
+    item.querySelector('.remove').onclick = () => { skill.lesson.commands.splice(i, 1); renderAll(); };
+    item.querySelector('.move-up').onclick = () => { move(skill.lesson.commands, i, i-1); renderAll(); };
+    item.querySelector('.move-down').onclick = () => { move(skill.lesson.commands, i, i+1); renderAll(); };
+    box.appendChild(item);
+  });
+}
+
+function move(arr, from, to) {
+  if (to < 0 || to >= arr.length) return;
+  const [item] = arr.splice(from, 1);
+  arr.splice(to, 0, item);
+}
+
+function renderPreview() {
+  // Do not replace the live `data` object here.
+  // Field listeners hold references to the currently edited skill object.
+  // Reassigning `data = normalizeData(data)` during every keystroke creates
+  // fresh skill objects and leaves those listeners editing stale copies.
+  // Generate a normalized preview/export copy instead.
+  $('preview').textContent = JSON.stringify(normalizeData(data), null, 2) + "\n";
+}
+
+function setStatus(message) {
+  $('status').textContent = message;
+  clearTimeout(window.statusTimer);
+  window.statusTimer = setTimeout(() => $('status').textContent = "", 3000);
+}
+
+function exportJson() {
+  const json = JSON.stringify(normalizeData(data), null, 2) + "\n";
+  const blob = new Blob([json], { type: "application/json" });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (data.id || "lesson_plan") + ".json";
+  document.body.appendChild(a);
+  a.click();
+  URL.revokeObjectURL(a.href);
+  a.remove();
+  setStatus("JSON exported.");
+}
+
+function copyJson() {
+  const json = JSON.stringify(normalizeData(data), null, 2) + "\n";
+  navigator.clipboard.writeText(json).then(
+    () => setStatus("JSON copied."),
+    () => setStatus("Copy failed. Use the preview box.")
+  );
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+function attr(s) { return escapeHtml(s ?? ""); }
+function text(s) { return escapeHtml(s ?? ""); }
+
+$('courseId').addEventListener('input', e => { data.id = e.target.value; renderPreview(); });
+$('courseTitle').addEventListener('input', e => { data.title = e.target.value; renderPreview(); });
+$('courseSummary').addEventListener('input', e => { data.summary = e.target.value; renderPreview(); });
+$('downloadBtn').onclick = exportJson;
+$('copyBtn').onclick = copyJson;
+$('resetBtn').onclick = () => {
+  if (confirm("Reset all edits back to the embedded original JSON?")) {
+    data = deepClone(originalData);
+    selectedIndex = 0;
+    renderAll();
+    setStatus("Reset complete.");
+  }
+};
+$('importFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    data = normalizeData(JSON.parse(text));
+    selectedIndex = 0;
+    renderAll();
+    setStatus("JSON imported.");
+  } catch (err) {
+    alert("Import failed: " + err.message);
+  } finally {
+    e.target.value = "";
+  }
+});
+
+renderAll();
+</script>
+</body>
+</html>

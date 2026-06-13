@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 APP_DIR="${SAMWIZARD_APP_DIR:-/opt/samwizard}"
 ENV_DIR="${SAMWIZARD_ENV_DIR:-/etc/samwizard}"
+STATE_DIR="${SAMWIZARD_STATE_DIR:-/var/lib/samwizard}"
 # Default env file: /etc/samwizard/samwizard.env
 ENV_FILE="${SAMWIZARD_ENV_FILE:-${ENV_DIR}/samwizard.env}"
 SERVICE_FILE="/etc/systemd/system/samwizard.service"
@@ -79,7 +80,9 @@ install_python_requirements() {
 write_environment_file() {
   say "Writing service settings..."
   mkdir -p "${ENV_DIR}"
+  mkdir -p "${STATE_DIR}"
   chmod 700 "${ENV_DIR}"
+  chmod 700 "${STATE_DIR}"
   if [ -r "${ENV_FILE}" ] && grep -q '^SAMWIZARD_SECRET_KEY=' "${ENV_FILE}"; then
     secret_key="$(grep '^SAMWIZARD_SECRET_KEY=' "${ENV_FILE}" | tail -n 1 | cut -d= -f2-)"
   else
@@ -90,6 +93,7 @@ write_environment_file() {
 SAMWIZARD_SECRET_KEY=${secret_key}
 SAMWIZARD_HOST=${HOST}
 SAMWIZARD_PORT=${PORT}
+SAMWIZARD_STATE_DIR=${STATE_DIR}
 EOF
   chmod 600 "${ENV_FILE}"
 }

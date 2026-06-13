@@ -1,0 +1,12 @@
+{
+  "active_tree_id": "ubuntu_cli_basics",
+  "completed_skill_ids": [],
+  "last_opened_skill_id": "ubuntu-server",
+  "schema_version": 1,
+  "unlocked_skill_ids": [
+    "ubuntu-server",
+    "terminal-basics",
+    "server-identity"
+  ],
+  "updated_at": "2026-06-13T07:43:04Z"
+}

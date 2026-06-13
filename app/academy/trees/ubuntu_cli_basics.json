@@ -1,0 +1,520 @@
+{
+  "id": "ubuntu_cli_basics",
+  "title": "Ubuntu Server & CLI Basics",
+  "summary": "A beginner-friendly path for understanding your Ubuntu Server, terminal commands, Samba shares, and Tailscale access.",
+  "skills": [
+    {
+      "id": "ubuntu-server",
+      "title": "What Ubuntu Server Is",
+      "icon": {
+        "type": "builtin",
+        "name": "server"
+      },
+      "summary": "Learn what a server does and why Ubuntu Server is useful at home.",
+      "map": {
+        "row": 0,
+        "col": 0
+      },
+      "layout": {
+        "slot": "top-left",
+        "group": "basics"
+      },
+      "starts_unlocked": true,
+      "unlocks": [
+        "linux-filesystem"
+      ],
+      "lesson": {
+        "intro": [
+          "Ubuntu Server is a Linux operating system meant to run services for other computers. It usually has no desktop screen because it is built to stay reliable, quiet, and available.",
+          "For SamWizard, your server can store files, share them to Windows, and later let you reach them securely from outside your home network."
+        ],
+        "commands": [
+          {
+            "command": "lsb_release -a",
+            "origin": "Linux Standard Base release",
+            "purpose": "Shows the Ubuntu version installed on the server.",
+            "outcome": "Prints version details such as Ubuntu 24.04 LTS or Ubuntu 26.04 LTS."
+          },
+          {
+            "command": "uptime",
+            "origin": "up time",
+            "purpose": "Shows how long the server has been running.",
+            "outcome": "Prints current time, running time, logged-in users, and system load."
+          }
+        ],
+        "exercise": "Run lsb_release -a and uptime from an SSH session or local terminal so you can identify the server and confirm it is running normally.",
+        "paste_prompt": "Optional: paste the Ubuntu version line or uptime output here for your own notes."
+      }
+    },
+    {
+      "id": "terminal-basics",
+      "title": "What the Terminal Is",
+      "icon": {
+        "type": "builtin",
+        "name": "terminal"
+      },
+      "summary": "Understand prompts, commands, output, and why the terminal is powerful.",
+      "map": {
+        "row": 0,
+        "col": 2
+      },
+      "layout": {
+        "slot": "top-center",
+        "group": "basics"
+      },
+      "starts_unlocked": true,
+      "unlocks": [
+        "navigation-basics",
+        "reading-output"
+      ],
+      "lesson": {
+        "intro": [
+          "The terminal is a text conversation with your server. You type a command, press Enter, and read the result.",
+          "A command is not magic. It is usually a small program with a short name, options, and sometimes a target such as a file or folder."
+        ],
+        "commands": [
+          {
+            "command": "pwd",
+            "origin": "print working directory",
+            "purpose": "Shows where you are in the server's folder tree.",
+            "outcome": "Prints one path, such as /home/sam."
+          },
+          {
+            "command": "whoami",
+            "origin": "who am I",
+            "purpose": "Shows the Linux username currently running commands.",
+            "outcome": "Prints a username."
+          }
+        ],
+        "exercise": "Run pwd and whoami. Notice that one command describes location and one describes identity.",
+        "paste_prompt": "Optional: paste the two short outputs here."
+      }
+    },
+    {
+      "id": "server-identity",
+      "title": "Server Identity",
+      "icon": {
+        "type": "builtin",
+        "name": "identity"
+      },
+      "summary": "Find the hostname, IP address, and username that identify your server.",
+      "map": {
+        "row": 0,
+        "col": 4
+      },
+      "layout": {
+        "slot": "top-right",
+        "group": "basics"
+      },
+      "starts_unlocked": true,
+      "unlocks": [
+        "networking-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Your server has several names depending on who is asking. The hostname is its Linux name, the IP address is its network address, and your username is the account you log in with.",
+          "Knowing these three pieces makes SSH, Samba paths, and Tailscale addresses easier to understand."
+        ],
+        "commands": [
+          {
+            "command": "hostname",
+            "origin": "host name",
+            "purpose": "Shows the server's local computer name.",
+            "outcome": "Prints a short name such as fileserver."
+          },
+          {
+            "command": "hostname -I",
+            "origin": "host name, all IP addresses",
+            "purpose": "Shows IP addresses assigned to the server.",
+            "outcome": "Prints one or more addresses such as 192.168.1.50."
+          }
+        ],
+        "exercise": "Run hostname, hostname -I, and whoami. Write down the values you would use to connect from another computer.",
+        "paste_prompt": "Optional: paste the hostname and first IP address here."
+      }
+    },
+    {
+      "id": "linux-filesystem",
+      "title": "Files And Folders",
+      "icon": {
+        "type": "builtin",
+        "name": "folder"
+      },
+      "summary": "Learn how Linux organizes paths such as /home, /srv, and /mnt.",
+      "map": {
+        "row": 1,
+        "col": 1
+      },
+      "layout": {
+        "slot": "upper-left",
+        "group": "basics"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "drives-and-mounts"
+      ],
+      "lesson": {
+        "intro": [
+          "Linux uses one big folder tree that starts at /. Drives, user folders, services, and system files all appear somewhere under that root.",
+          "SamWizard uses folders under /srv because /srv is commonly used for data served to other computers."
+        ],
+        "commands": [
+          {
+            "command": "ls /",
+            "origin": "list",
+            "purpose": "Lists the top-level folders on the server.",
+            "outcome": "Shows names such as home, etc, srv, var, and usr."
+          },
+          {
+            "command": "ls /srv",
+            "origin": "list / service data",
+            "purpose": "Shows service data folders if they exist.",
+            "outcome": "May show samba or other service folders."
+          }
+        ],
+        "exercise": "Run ls / and look for home, srv, and mnt. These folder names will appear often in server guides.",
+        "paste_prompt": "Optional: paste the folder names you recognized."
+      }
+    },
+    {
+      "id": "navigation-basics",
+      "title": "Navigation Basics",
+      "icon": {
+        "type": "builtin",
+        "name": "compass"
+      },
+      "summary": "Move around safely with pwd, ls, and cd.",
+      "map": {
+        "row": 2,
+        "col": 0
+      },
+      "layout": {
+        "slot": "middle-left",
+        "group": "basics"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "permissions-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Navigation commands let you inspect the server without changing it. They are safe first commands because they mostly read information.",
+          "Think of pwd as your current map pin, ls as looking around, and cd as walking into another folder."
+        ],
+        "commands": [
+          {
+            "command": "ls -la",
+            "origin": "list, long, all",
+            "purpose": "Shows visible and hidden files with details.",
+            "outcome": "Prints permissions, owners, sizes, dates, and names."
+          },
+          {
+            "command": "cd /srv",
+            "origin": "change directory",
+            "purpose": "Moves your terminal location to /srv.",
+            "outcome": "Usually prints nothing if it worked."
+          }
+        ],
+        "exercise": "Run pwd, cd /srv, pwd, and ls -la. Notice how the second pwd changes.",
+        "paste_prompt": "Optional: paste the final pwd output."
+      }
+    },
+    {
+      "id": "reading-output",
+      "title": "Reading Output",
+      "icon": {
+        "type": "builtin",
+        "name": "document"
+      },
+      "summary": "Learn how to read command output, empty success, and error messages.",
+      "map": {
+        "row": 2,
+        "col": 2
+      },
+      "layout": {
+        "slot": "middle-right",
+        "group": "basics"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "services-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Some commands print useful information. Some commands print nothing when they succeed. Error messages are clues, not failures of learning.",
+          "Look for the first plain-English message, file path, or permission note before searching for help."
+        ],
+        "commands": [
+          {
+            "command": "ls /not-a-real-folder",
+            "origin": "list a missing path",
+            "purpose": "Creates a harmless error so you can practice reading it.",
+            "outcome": "Prints a message that the folder cannot be accessed because it does not exist."
+          },
+          {
+            "command": "echo hello",
+            "origin": "echo",
+            "purpose": "Prints text back to the terminal.",
+            "outcome": "Prints hello."
+          }
+        ],
+        "exercise": "Run echo hello, then run ls /not-a-real-folder. Compare normal output with an error message.",
+        "paste_prompt": "Optional: paste the error line you saw."
+      }
+    },
+    {
+      "id": "networking-basics",
+      "title": "Networking Basics",
+      "icon": {
+        "type": "builtin",
+        "name": "network"
+      },
+      "summary": "Connect IP addresses, ports, local networks, and remote access.",
+      "map": {
+        "row": 1,
+        "col": 5
+      },
+      "layout": {
+        "slot": "upper-right",
+        "group": "networking"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "tailscale-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Networking is how computers find each other. An IP address identifies a device. A port identifies a service on that device.",
+          "Samba, SSH, the SamWizard web app, and Tailscale all use networking, but each has a different job."
+        ],
+        "commands": [
+          {
+            "command": "ip addr",
+            "origin": "internet protocol address",
+            "purpose": "Shows network interfaces and addresses.",
+            "outcome": "Prints interface names and IP addresses."
+          },
+          {
+            "command": "ss -tulpn",
+            "origin": "socket statistics",
+            "purpose": "Shows listening network services.",
+            "outcome": "Prints protocols, ports, and process names when allowed."
+          }
+        ],
+        "exercise": "Run hostname -I and compare it with the address SamWizard shows in setup screens.",
+        "paste_prompt": "Optional: paste the first local IP address."
+      }
+    },
+    {
+      "id": "drives-and-mounts",
+      "title": "Drives And Mounts",
+      "icon": {
+        "type": "builtin",
+        "name": "drive"
+      },
+      "summary": "Understand why Linux mounts drives into folders.",
+      "map": {
+        "row": 3,
+        "col": 1
+      },
+      "layout": {
+        "slot": "far-left",
+        "group": "storage"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "samba-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Linux does not show drives as C: or D:. A drive becomes usable when it is mounted into a folder.",
+          "SamWizard mounts selected drives under /srv/samba/drives so Samba can share a stable folder path."
+        ],
+        "commands": [
+          {
+            "command": "lsblk",
+            "origin": "list block devices",
+            "purpose": "Shows disks, partitions, sizes, and mount points.",
+            "outcome": "Prints a tree of storage devices."
+          },
+          {
+            "command": "findmnt",
+            "origin": "find mounts",
+            "purpose": "Shows mounted filesystems.",
+            "outcome": "Prints target folders and source devices."
+          }
+        ],
+        "exercise": "Run lsblk and findmnt. Look for the MOUNTPOINTS or TARGET column.",
+        "paste_prompt": "Optional: paste one drive line that includes a mount point."
+      }
+    },
+    {
+      "id": "permissions-basics",
+      "title": "Permissions",
+      "icon": {
+        "type": "builtin",
+        "name": "lock"
+      },
+      "summary": "Read owner, group, and permission letters without panic.",
+      "map": {
+        "row": 3,
+        "col": 3
+      },
+      "layout": {
+        "slot": "lower-left",
+        "group": "basics"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "services-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "Permissions decide who can read, write, or run files. The letters r, w, and x mean read, write, and execute.",
+          "When Samba shares a folder, Linux permissions still matter underneath the Windows share."
+        ],
+        "commands": [
+          {
+            "command": "ls -ld /srv",
+            "origin": "list long directory",
+            "purpose": "Shows permissions and ownership for /srv itself.",
+            "outcome": "Prints one detailed line."
+          },
+          {
+            "command": "id",
+            "origin": "identity",
+            "purpose": "Shows your user id and group memberships.",
+            "outcome": "Prints uid, gid, and groups."
+          }
+        ],
+        "exercise": "Run ls -ld /srv and id. Find the owner and group names in the output.",
+        "paste_prompt": "Optional: paste the permission letters from the first column."
+      }
+    },
+    {
+      "id": "services-basics",
+      "title": "Services",
+      "icon": {
+        "type": "builtin",
+        "name": "gear"
+      },
+      "summary": "Learn how background services run, stop, and report status.",
+      "map": {
+        "row": 4,
+        "col": 2
+      },
+      "layout": {
+        "slot": "lower-center",
+        "group": "services"
+      },
+      "starts_unlocked": false,
+      "unlocks": [
+        "samba-basics"
+      ],
+      "lesson": {
+        "intro": [
+          "A service is a program meant to run in the background. Web apps, file sharing, SSH, and Tailscale are usually services.",
+          "On Ubuntu Server, systemctl is the common tool for checking service status."
+        ],
+        "commands": [
+          {
+            "command": "systemctl status ssh",
+            "origin": "system control status",
+            "purpose": "Shows whether the SSH service is active.",
+            "outcome": "Prints service state, recent logs, and process information."
+          },
+          {
+            "command": "systemctl --type=service --state=running",
+            "origin": "system control running services",
+            "purpose": "Lists currently running services.",
+            "outcome": "Prints a table of active services."
+          }
+        ],
+        "exercise": "Run systemctl status ssh. Press q if the output opens in a pager.",
+        "paste_prompt": "Optional: paste the Active line."
+      }
+    },
+    {
+      "id": "samba-basics",
+      "title": "How Samba Works",
+      "icon": {
+        "type": "builtin",
+        "name": "share"
+      },
+      "summary": "Connect Linux folders to Windows file sharing.",
+      "map": {
+        "row": 5,
+        "col": 1
+      },
+      "layout": {
+        "slot": "bottom-center",
+        "group": "sharing"
+      },
+      "starts_unlocked": false,
+      "unlocks": [],
+      "lesson": {
+        "intro": [
+          "Samba lets a Linux server speak the Windows file sharing language. Windows sees a network path, while Linux still stores the files in a normal folder.",
+          "A Samba share combines a folder path, a share name, a service, and user access rules."
+        ],
+        "commands": [
+          {
+            "command": "testparm -s",
+            "origin": "test parameters",
+            "purpose": "Checks Samba configuration and prints a summarized version.",
+            "outcome": "Prints Samba share settings if Samba is installed."
+          },
+          {
+            "command": "systemctl status smbd",
+            "origin": "Samba daemon status",
+            "purpose": "Shows whether the Samba file sharing service is running.",
+            "outcome": "Prints active, inactive, or error status details."
+          }
+        ],
+        "exercise": "If Samba is installed, run systemctl status smbd and look for the Active line.",
+        "paste_prompt": "Optional: paste the Active line or write 'not installed yet'."
+      }
+    },
+    {
+      "id": "tailscale-basics",
+      "title": "How Tailscale Works",
+      "icon": {
+        "type": "builtin",
+        "name": "link"
+      },
+      "summary": "Understand private remote access without opening public file sharing.",
+      "map": {
+        "row": 5,
+        "col": 5
+      },
+      "layout": {
+        "slot": "far-right",
+        "group": "networking"
+      },
+      "starts_unlocked": false,
+      "unlocks": [],
+      "lesson": {
+        "intro": [
+          "Tailscale creates a private network between your devices. It gives each device a private Tailscale IP address that works even when you are away from home.",
+          "SamWizard uses Tailscale to help reach your Samba share remotely without turning your Samba server into a public internet service."
+        ],
+        "commands": [
+          {
+            "command": "tailscale status",
+            "origin": "Tailscale status",
+            "purpose": "Shows devices connected to your Tailscale network.",
+            "outcome": "Prints device names, Tailscale IPs, and connection status."
+          },
+          {
+            "command": "tailscale ip -4",
+            "origin": "Tailscale IPv4 address",
+            "purpose": "Shows this server's Tailscale IPv4 address.",
+            "outcome": "Prints an address that usually starts with 100."
+          }
+        ],
+        "exercise": "If Tailscale is installed, run tailscale ip -4 and compare it with the remote address shown by SamWizard.",
+        "paste_prompt": "Optional: paste the Tailscale IP or write 'not installed yet'."
+      }
+    }
+  ]
+}
